@@ -12,12 +12,22 @@ async function refreshUsage(){usageState=await api('/usage');renderUsage();}
 
 function renderHistory(){
  const nav=$('#history');nav.replaceChildren();const term=$('#search').value.trim().toLowerCase(),list=chats.filter(c=>c.title.toLowerCase().includes(term));
- for(const c of list){const b=document.createElement('button');b.className='history-item '+((c.kind==='site'&&siteMode&&c.id===siteProjectId)||(!siteMode&&c.id===current)?'active':'');b.dataset.kind=c.kind||'chat';
+ for(const c of list){
+  const row=document.createElement('div');row.className='history-row '+(c.kind==='site'?'site':'chat');
+  const b=document.createElement('button');b.className='history-item '+((c.kind==='site'&&siteMode&&c.id===siteProjectId)||(!siteMode&&c.id===current)?'active':'');b.dataset.kind=c.kind||'chat';
   const icon=document.createElement('span');icon.className='history-kind';icon.textContent=c.kind==='site'?'◇':'';
-  const label=document.createElement('span');label.className='history-label';label.textContent=c.title;
-  b.append(icon,label);
-  if(c.kind==='site'){const state=document.createElement('span');state.className='history-site-state '+(c.status||'idle');state.textContent=c.status==='running'?'制作中':c.status==='complete'?'完成':c.status==='error'?'エラー':c.status==='stopped'?'停止':'準備中';if(c.status==='running'){const spin=document.createElement('i');spin.className='history-running';spin.setAttribute('aria-hidden','true');state.prepend(spin);}b.append(state);}
-  bindHistoryActions(b,c);nav.append(b);
+  const label=document.createElement('span');label.className='history-label';label.textContent=c.title;b.append(icon,label);
+  if(c.kind==='site'){
+   const state=document.createElement('span');state.className='history-site-state '+(c.status||'idle');state.textContent=c.status==='running'?'制作中':c.status==='complete'?'完成':c.status==='error'?'エラー':c.status==='stopped'?'停止':'準備中';
+   if(c.status==='running'){const spin=document.createElement('i');spin.className='history-running';spin.setAttribute('aria-hidden','true');state.prepend(spin);}b.append(state);
+  }
+  bindHistoryActions(b,c);row.append(b);
+  if(c.kind==='site'){
+   const del=document.createElement('button');del.type='button';del.className='history-site-delete';del.setAttribute('aria-label',c.title+'を削除');del.setAttribute('title','サイト制作を削除');
+   del.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M7 7l1 13h8l1-13"/><path d="M10 11v5M14 11v5"/></svg>';
+   del.onclick=e=>{e.stopPropagation();siteHistoryActions(c);};row.append(del);
+  }
+  nav.append(row);
  }
  if(!list.length){const p=document.createElement('p');p.textContent=term?'見つかりません':'会話はここに表示されます';nav.append(p);}
 }
@@ -93,8 +103,11 @@ async function openSiteProject(id){
 }
 async function sendSiteMessage(){
  const text=$('#prompt').value.trim();if(!text||siteProjectStatus==='running')return;
- if(!siteProjectId){const created=await api('/site-projects','POST',{});applySiteProjectData(created);}
- $('#prompt').value='';await api('/site-projects/'+siteProjectId+'/messages','POST',{content:text});siteProjectStatus='running';await refresh();await pollSiteProject(siteProjectId);
+ if(!siteProjectId){
+  const created=await api('/site-projects','POST',{});applySiteProjectData(created,{renderNow:false});
+  siteConversation=[{role:'assistant',content:'制作を始めるね。別のチャットへ移動してもバックグラウンドで続くよ。'}];
+ }
+ $('#prompt').value='';await api('/site-projects/'+siteProjectId+'/messages','POST',{content:text});siteProjectStatus='running';updateModel();await refresh();await pollSiteProject(siteProjectId);
 }
 async function openSitePreview(path=sitePreviewPath){
  if(!path)return;sitePreviewPath=path;const frame=$('#sitePreviewFrame'),title=$('#sitePreviewTitle'),url=API_BASE+path+(path.includes('?')?'&':'?')+'v='+Date.now();
@@ -107,7 +120,10 @@ async function publishSiteProject(){if(!siteProjectId||!siteProject)return;const
 async function revokeSiteProject(){if(!siteProjectId||!sitePublished)return;await api('/site-projects/'+siteProjectId+'/publish','DELETE');sitePublished=null;const data=await api('/site-projects/'+siteProjectId);applySiteProjectData(data);}
 async function openSiteBuilder(){
  if(busy&&generationController){generationController.abort();setBusy(false);}
- const created=await api('/site-projects','POST',{});siteMode=true;document.body.classList.add('site-mode');current=null;pendingAssets=[];renderPending();closePopovers();closeSitePreview();applySiteProjectData(created);await refresh();document.body.classList.remove('sidebar-open');$('#prompt').focus();
+ clearTimeout(sitePollTimer);siteMode=true;document.body.classList.add('site-mode');current=null;pendingAssets=[];renderPending();closePopovers();closeSitePreview();
+ siteProjectId=null;siteProjectStatus='idle';siteProject=null;sitePreviewPath='';sitePublished=null;siteTitle='新しいサイト';
+ siteConversation=[{role:'assistant',content:'作りたいサイトを教えて。最初の指示を送った時点で制作履歴に保存されるよ。制作を始めたあとは、別のチャットへ移動してもバックグラウンドで続く。'}];
+ updateModel();render();renderHistory();document.body.classList.remove('sidebar-open');$('#prompt').focus();
 }
 function messageNode(m,index){const article=document.createElement('article');article.className='message '+m.role;const bubble=document.createElement('div');bubble.className='bubble';if(m.role==='assistant'){const who=document.createElement('div');who.className='who';const logo=document.createElement('span');logo.className='mini-logo';logo.textContent='';const label=document.createElement('span');label.textContent=`Kuup AI${m.status==='interrupted'?' · 中断':''}`;who.append(logo,label);article.append(who);}const content=document.createElement('div');content.className='content';if(m.image){const img=document.createElement('img');img.className='generated-image';img.src=m.image;img.alt=m.content;content.append(img);const p=document.createElement('p');p.textContent=m.content;content.append(p);}else if(busy&&m.role==='assistant'&&!m.content){const dots=document.createElement('span');dots.className='thinking-dots';dots.setAttribute('aria-label','回答を生成しています');for(let n=0;n<3;n++)dots.append(document.createElement('i'));content.append(dots);}else format(content,m.content||'');for(const asset of m.assets||[]){const holder=document.createElement('div');holder.className='asset-holder';holder.textContent=asset.name;content.append(holder);loadMedia(asset,holder);}bubble.append(content);if(m.sources?.length)bubble.append(sourcesNode(m.sources));article.append(bubble);if(m.role==='assistant'&&(m.content||m.image)){const tools=document.createElement('div');tools.className='message-tools';const copy=document.createElement('button');copy.textContent='コピー';copy.onclick=safe(async()=>{await navigator.clipboard.writeText(m.content);copy.textContent='コピー済み';});tools.append(copy);if(index===conversation.length-1&&!m.image){const retry=document.createElement('button');retry.textContent='↻ 再生成';retry.disabled=busy;retry.onclick=safe(()=>send(true));tools.append(retry);}article.append(tools);}return article;}
 function render(){if(siteMode){renderSiteConversation();return;}const area=$('#messages');area.replaceChildren(...conversation.map(messageNode));$('#welcome').hidden=conversation.length>0;$('#siteBuilderOpen').classList.remove('active');for(const id of ['rename','delete','export'])$('#'+id).disabled=!current||busy;}
