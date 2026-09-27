@@ -74,6 +74,7 @@ function siteProgressNode(m){
  if(status==='success'){mark.className='site-progress-check';mark.textContent='✓';}else if(status==='error'){mark.className='site-progress-error';mark.textContent='!';}else if(status==='stopped'){mark.className='site-progress-stopped';mark.textContent='■';}else mark.className='site-progress-spinner';
  const title=document.createElement('b');title.textContent=status==='success'?'完成しました ✓':status==='error'?'作成に失敗しました':status==='stopped'?'停止しました':'作成中…';head.append(mark,title);card.append(head);
  for(const step of m.steps||[]){const row=document.createElement('div');row.className='site-progress-step '+(step.state||'done');const icon=document.createElement('span');icon.textContent=step.state==='active'?'●':step.state==='error'?'!':step.state==='stopped'?'■':'✓';const text=document.createElement('span');text.textContent=localizeCookProgressLabel(step.label);row.append(icon,text);card.append(row);}
+ if(status==='error'&&m.error){const detail=document.createElement('div');detail.className='site-progress-error-detail';detail.textContent=m.error;card.append(detail);}
  if(status==='error'||status==='stopped'){const retry=document.createElement('button');retry.type='button';retry.className='site-progress-retry';retry.textContent='↻ もう一度試す';retry.onclick=()=>{const last=[...siteConversation].reverse().find(x=>x.role==='user'&&x.content)?.content;if(last&&!busy){$('#prompt').value=last;sendSiteMessage();}};card.append(retry);}
  article.append(card);return article;
 }
@@ -107,7 +108,7 @@ function siteStateMessages(data){
  const result=(data.messages||[]).map(m=>({role:m.role,content:m.content}));
  if(data.job){
   const status=data.job.status==='complete'?'success':data.job.status==='error'?'error':data.job.status==='stopped'?'stopped':'working';
-  if(data.job.progress?.length||data.job.status==='running')result.push({role:'assistant',kind:'progress',steps:data.job.progress||[],status});
+  if(data.job.progress?.length||data.job.status==='running'||data.job.error)result.push({role:'assistant',kind:'progress',steps:data.job.progress||[],status,error:data.job.error||''});
  }
  return result;
 }
