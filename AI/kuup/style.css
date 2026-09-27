@@ -174,3 +174,5 @@ body:not(.dark) .orb{display:none}
 .site-mode .mini-logo{background:transparent url('./cook-logo.svg') center / contain no-repeat;border-radius:0}
 
 .site-progress-error-detail{margin:12px 0 4px;padding:12px 14px;border-radius:14px;background:rgba(188,45,45,.07);border:1px solid rgba(188,45,45,.16);color:#a72b2b;font-size:.88rem;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+
+.site-github-autosave{display:inline-flex;align-items:center;padding:9px 12px;border-radius:999px;background:rgba(31,157,98,.09);border:1px solid rgba(31,157,98,.18);color:#187b4d;font-size:.82rem;font-weight:700}
