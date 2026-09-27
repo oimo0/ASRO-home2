@@ -127,8 +127,8 @@ async function openSiteProject(id){
 async function sendSiteMessage(){
  const text=$('#prompt').value.trim();if(!text||siteProjectStatus==='running')return;
  if(!siteProjectId){
-  const created=await api('/site-projects','POST',{});applySiteProjectData(created,{renderNow:false});
-  siteConversation=[{role:'assistant',content:'作成を始めたよ。別のチャットへ移動してもバックグラウンドで続くよ。'}];
+  const created=await api('/site-projects','POST',{prompt:text});applySiteProjectData(created,{renderNow:false});
+  siteConversation=siteStateMessages(created);if(!siteConversation.length)siteConversation=[{role:'assistant',content:'作業を始めたよ。別のチャットへ移動してもバックグラウンドで続くよ。'}];
  }
  clearPromptBox();await api('/site-projects/'+siteProjectId+'/messages','POST',{content:text});siteProjectStatus='running';updateModel();await refresh();await pollSiteProject(siteProjectId);
 }
