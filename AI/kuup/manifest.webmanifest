@@ -1,1 +1,32 @@
-{}
+{
+  "name": "Kuup AI",
+  "short_name": "Kuup",
+  "description": "ASROのAIチャット",
+  "id": "/AI/kuup/",
+  "start_url": "/AI/kuup/",
+  "scope": "/AI/kuup/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "lang": "ja",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
