@@ -172,3 +172,5 @@ body:not(.dark) .orb{display:none}
 .cook-selector-logo{display:block;width:38px;height:38px;object-fit:contain}
 .site-mode .header-mark{width:30px;height:30px;border-radius:0;object-fit:contain}
 .site-mode .mini-logo{background:transparent url('./cook-logo.svg') center / contain no-repeat;border-radius:0}
+
+.site-progress-error-detail{margin:12px 0 4px;padding:12px 14px;border-radius:14px;background:rgba(188,45,45,.07);border:1px solid rgba(188,45,45,.16);color:#a72b2b;font-size:.88rem;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
