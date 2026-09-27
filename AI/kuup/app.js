@@ -16,8 +16,7 @@ function renderHistory(){
   const icon=document.createElement('span');icon.className='history-kind';icon.textContent=c.kind==='site'?'◇':'';
   const label=document.createElement('span');label.className='history-label';label.textContent=c.title;
   b.append(icon,label);
-  if(c.status==='running'){const spin=document.createElement('span');spin.className='history-running';spin.setAttribute('aria-label','生成中');b.append(spin);}
-  else if(c.kind==='site'&&c.status==='error'){const mark=document.createElement('span');mark.className='history-error';mark.textContent='!';b.append(mark);}
+  if(c.kind==='site'){const state=document.createElement('span');state.className='history-site-state '+(c.status||'idle');state.textContent=c.status==='running'?'制作中':c.status==='complete'?'完成':c.status==='error'?'エラー':c.status==='stopped'?'停止':'準備中';if(c.status==='running'){const spin=document.createElement('i');spin.className='history-running';spin.setAttribute('aria-hidden','true');state.prepend(spin);}b.append(state);}
   bindHistoryActions(b,c);nav.append(b);
  }
  if(!list.length){const p=document.createElement('p');p.textContent=term?'見つかりません':'会話はここに表示されます';nav.append(p);}
@@ -90,7 +89,12 @@ async function sendSiteMessage(){
  if(!siteProjectId){const created=await api('/site-projects','POST',{});applySiteProjectData(created);}
  $('#prompt').value='';await api('/site-projects/'+siteProjectId+'/messages','POST',{content:text});siteProjectStatus='running';await refresh();await pollSiteProject(siteProjectId);
 }
-function openSitePreview(path=sitePreviewPath){if(!path)return;sitePreviewPath=path;const frame=$('#sitePreviewFrame');frame.src=API_BASE+path+(path.includes('?')?'&':'?')+'v='+Date.now();$('#sitePreviewTitle').textContent=siteTitle||'Kuup Site';$('#sitePreviewDrawer').hidden=false;document.body.classList.add('site-preview-open');}
+async function openSitePreview(path=sitePreviewPath){
+ if(!path)return;sitePreviewPath=path;const frame=$('#sitePreviewFrame'),title=$('#sitePreviewTitle'),url=API_BASE+path+(path.includes('?')?'&':'?')+'v='+Date.now();
+ $('#sitePreviewDrawer').hidden=false;document.body.classList.add('site-preview-open');title.textContent='プレビューを確認しています…';
+ try{const check=await fetch(url,{cache:'no-store'});if(!check.ok)throw Error('プレビューを読み込めませんでした（'+check.status+'）');frame.src=url;title.textContent=siteTitle||'Kuup Site';}
+ catch(e){title.textContent='プレビューを開けませんでした';notice(e.message);}
+}
 function closeSitePreview(){$('#sitePreviewDrawer').hidden=true;document.body.classList.remove('site-preview-open');}
 async function publishSiteProject(){if(!siteProjectId||!siteProject)return;const result=await api('/site-projects/'+siteProjectId+'/publish','POST',{});sitePublished=result;const data=await api('/site-projects/'+siteProjectId);applySiteProjectData(data);}
 async function revokeSiteProject(){if(!siteProjectId||!sitePublished)return;await api('/site-projects/'+siteProjectId+'/publish','DELETE');sitePublished=null;const data=await api('/site-projects/'+siteProjectId);applySiteProjectData(data);}
