@@ -83,6 +83,19 @@ function siteProjectNode(m){
  const bubble=document.createElement('div');bubble.className='site-project-card';const top=document.createElement('div');top.className='site-project-top';const copy=document.createElement('div');const kicker=document.createElement('small');kicker.textContent=isRepo?'GitHubリポジトリ':'完成';const title=document.createElement('b');title.textContent=m.project?.summary||(isRepo?'リポジトリを読み込みました。':'サイトが完成しました。');copy.append(kicker,title);top.append(copy);
  if(m.previewPath){const preview=document.createElement('button');preview.type='button';preview.className='site-preview-button';preview.textContent='▶ プレビュー';preview.onclick=()=>openSitePreview(m.previewPath);top.append(preview);}bubble.append(top);
  const files=document.createElement('div');files.className='site-file-list';const projectFiles=m.project?.files||[],visible=projectFiles.slice(0,24);for(const file of visible){const chip=document.createElement('span');chip.textContent=file.path;files.append(chip);}if(projectFiles.length>visible.length){const more=document.createElement('span');more.textContent='+'+(projectFiles.length-visible.length)+' ファイル';files.append(more);}bubble.append(files);
+ if(isRepo&&m.project?.profile){
+  const profile=document.createElement('div');profile.className='site-repo-profile';const h=document.createElement('b');h.textContent='リポジトリ解析';profile.append(h);
+  const row=document.createElement('div');row.className='site-repo-profile-chips';const bits=[m.project.profile.kind,...(m.project.profile.frameworks||[]),...(m.project.profile.languages||[]).slice(0,3)].filter(Boolean);
+  for(const bit of bits){const chip=document.createElement('span');chip.textContent=bit;row.append(chip);}profile.append(row);bubble.append(profile);
+ }
+ if(isRepo&&m.project?.changes){
+  const changes=m.project.changes,section=document.createElement('div');section.className='site-change-summary';const head=document.createElement('div');head.className='site-change-summary-head';const h=document.createElement('b');h.textContent='今回の変更';const counts=document.createElement('span');counts.textContent='追加 '+(changes.added?.length||0)+' ・ 更新 '+(changes.modified?.length||0)+' ・ 削除 '+(changes.deleted?.length||0);head.append(h,counts);section.append(head);
+  for(const [mark,items,kind] of [['＋',changes.added||[],'added'],['↻',changes.modified||[],'modified'],['−',changes.deleted||[],'deleted']]){for(const path of items.slice(0,8)){const line=document.createElement('div');line.className='site-change-line '+kind;const m=document.createElement('span');m.textContent=mark;const p=document.createElement('code');p.textContent=path;line.append(m,p);section.append(line);}if(items.length>8){const more=document.createElement('small');more.textContent='ほか '+(items.length-8)+' 件';section.append(more);}}
+  bubble.append(section);
+ }
+ if(isRepo&&m.project?.checks?.length){
+  const checks=document.createElement('details');checks.className='site-check-results';const summary=document.createElement('summary');summary.textContent='✓ 自動チェック '+m.project.checks.length+'件';checks.append(summary);const list=document.createElement('div');for(const item of m.project.checks.slice(0,20)){const line=document.createElement('div');line.textContent='✓ '+item;list.append(line);}checks.append(list);bubble.append(checks);
+ }
  const actions=document.createElement('div');actions.className='site-project-actions';
  if(isRepo&&m.project?.source?.autoSave){const auto=document.createElement('span');auto.className='site-github-autosave';auto.textContent='GitHub自動保存 ON';actions.append(auto);}
  if(m.previewPath){const publish=document.createElement('button');publish.type='button';publish.disabled=siteProjectStatus==='running'||siteCapabilities.canPublish===false;publish.textContent=siteProjectStatus==='running'?'作業完了後に公開':sitePublished?'公開内容を更新':(isRepo?'サイト公開':'公開する');publish.onclick=safe(publishSiteProject);actions.append(publish);}
