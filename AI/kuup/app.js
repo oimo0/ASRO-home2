@@ -132,8 +132,23 @@ function appearanceChange(change){const next={...(settings.appearance||{}),...ch
 $('#themeToggle').onclick=safe(()=>appearanceChange({theme:document.body.classList.contains('dark')?'light':'dark'}));
 $$('#accentPicker button').forEach(b=>b.onclick=safe(()=>appearanceChange({accent:b.dataset.accent})));
 $$('#composerPicker button').forEach(b=>b.onclick=safe(()=>appearanceChange({composer:b.dataset.composer})));
-function viewport(){document.documentElement.style.setProperty('--vh',(window.visualViewport?.height||innerHeight)+'px');}
-window.visualViewport?.addEventListener('resize',viewport);viewport();
+// Safari can retain the keyboard's short visualViewport height after it closes.
+function viewport(){
+  const height=window.visualViewport?.height;
+  const keyboardOpen=document.activeElement===$('#prompt')&&height&&height<window.innerHeight-80;
+  if(keyboardOpen)document.documentElement.style.setProperty('--vh',height+'px');
+  else document.documentElement.style.removeProperty('--vh');
+}
+window.visualViewport?.addEventListener('resize',viewport);
+window.addEventListener('resize',viewport);
+window.addEventListener('pageshow',viewport);
+$('#prompt').addEventListener('focus',viewport);
+$('#prompt').addEventListener('blur',()=>{
+  viewport();
+  setTimeout(viewport,350);
+  setTimeout(viewport,800);
+});
+viewport();
 document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();newChat();}if(e.key==='Escape'){document.body.classList.remove('sidebar-open');closePopovers();}});
 
 let actionChatId=null;
