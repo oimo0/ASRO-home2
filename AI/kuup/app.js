@@ -1,6 +1,6 @@
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const API_BASE=(window.SOMENAI_API_BASE||'').replace(/\/$/,'');
-let authToken=localStorage.getItem('somenai-token')||'',chats=[],current=null,conversation=[],busy=false,register=false,config,usageState,settings={studyMode:0,webMode:'auto'},generationController=null,generationRequestId='',siteMode=false,siteConversation=[],siteGenerationController=null,siteProject=null,sitePreviewPath='',sitePublished=null,siteTitle='My Site',quality=['low','normal','high','image'].includes(localStorage.getItem('somenai-quality'))?localStorage.getItem('somenai-quality'):'normal',imageMode=false;
+let authToken=localStorage.getItem('somenai-token')||'',chats=[],current=null,conversation=[],busy=false,register=false,config,usageState,settings={studyMode:0,webMode:'auto'},generationController=null,generationRequestId='',siteMode=false,siteConversation=[],siteGenerationController=null,siteProjectId=null,siteProjectStatus='idle',siteProject=null,sitePreviewPath='',sitePublished=null,siteTitle='My Site',sitePollTimer=0,quality=['low','normal','high','image'].includes(localStorage.getItem('somenai-quality'))?localStorage.getItem('somenai-quality'):'normal',imageMode=false;
 const qualityInfo={low:{label:'低',model:'Llama',color:'green'},normal:{label:'中',model:'Qwen',color:'blue'},high:{label:'高',color:'purple'},image:{label:'画像生成',color:'orange'}};
 const notice=s=>$('#notice').textContent=s||'';
 async function api(path,method='GET',data){const headers={};if(data)headers['Content-Type']='application/json';if(authToken)headers.Authorization='Bearer '+authToken;let res;try{res=await fetch(API_BASE+path,{method,headers,body:data?JSON.stringify(data):undefined});}catch{throw new Error('Kuup AIサーバーに接続できません。');}let value={};try{value=await res.json();}catch{}if(!res.ok){if(res.status===401&&!['/login','/register'].includes(path)){authToken='';localStorage.removeItem('somenai-token');if(!$('#auth').open)$('#auth').showModal();}throw new Error(value.error||`通信エラー（${res.status}）`);}return value;}
@@ -10,8 +10,19 @@ function updateModel(){if(siteMode){$('#modelName').textContent='サイト制作
 function renderUsage(){if(!usageState)return;$('#usageTiny').textContent=usageState.items[quality].remaining;const names={low:'🟢 低',normal:'🔵 中',high:'🟣 高',image:'🎨 画像生成'};for(const k of ['low','normal','high','image'])$('#left'+(k==='normal'?'Normal':k[0].toUpperCase()+k.slice(1))).textContent=`残り ${usageState.items[k].remaining}`;$('#usageCards').replaceChildren(...Object.entries(usageState.items).map(([k,v])=>{const d=document.createElement('div');d.className='usage-card';const s=document.createElement('small'),strong=document.createElement('strong');s.textContent=names[k];strong.textContent=`残り ${v.remaining} / ${v.limit}回`;d.append(s,strong);return d;}));}
 async function refreshUsage(){usageState=await api('/usage');renderUsage();}
 
-function renderHistory(){const nav=$('#history');nav.replaceChildren();const term=$('#search').value.trim().toLowerCase();const list=chats.filter(c=>c.title.toLowerCase().includes(term));for(const c of list){const b=document.createElement('button');b.textContent=c.title;b.className=c.id===current?'active':'';b.disabled=busy;bindHistoryActions(b,c);nav.append(b);}if(!list.length){const p=document.createElement('p');p.textContent=term?'見つかりません':'会話はここに表示されます';nav.append(p);}}
-async function refresh(){chats=await api('/chats');renderHistory();$('#chatTitle').textContent=chats.find(c=>c.id===current)?.title||'新しいチャット';}
+function renderHistory(){
+ const nav=$('#history');nav.replaceChildren();const term=$('#search').value.trim().toLowerCase(),list=chats.filter(c=>c.title.toLowerCase().includes(term));
+ for(const c of list){const b=document.createElement('button');b.className='history-item '+((c.kind==='site'&&siteMode&&c.id===siteProjectId)||(!siteMode&&c.id===current)?'active':'');b.dataset.kind=c.kind||'chat';
+  const icon=document.createElement('span');icon.className='history-kind';icon.textContent=c.kind==='site'?'◇':'';
+  const label=document.createElement('span');label.className='history-label';label.textContent=c.title;
+  b.append(icon,label);
+  if(c.status==='running'){const spin=document.createElement('span');spin.className='history-running';spin.setAttribute('aria-label','生成中');b.append(spin);}
+  else if(c.kind==='site'&&c.status==='error'){const mark=document.createElement('span');mark.className='history-error';mark.textContent='!';b.append(mark);}
+  bindHistoryActions(b,c);nav.append(b);
+ }
+ if(!list.length){const p=document.createElement('p');p.textContent=term?'見つかりません':'会話はここに表示されます';nav.append(p);}
+}
+async function refresh(){chats=await api('/chats');renderHistory();const selected=siteMode?chats.find(c=>c.kind==='site'&&c.id===siteProjectId):chats.find(c=>(c.kind||'chat')==='chat'&&c.id===current);$('#chatTitle').textContent=selected?.title||(siteMode?'サイト制作':'新しいチャット');}
 function inline(el,text){const parts=text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);for(const p of parts){if(p.startsWith('**')&&p.endsWith('**')){const n=document.createElement('strong');n.textContent=p.slice(2,-2);el.append(n);}else if(p.startsWith('`')&&p.endsWith('`')){const n=document.createElement('code');n.textContent=p.slice(1,-1);el.append(n);}else el.append(document.createTextNode(p));}}
 function tableNode(lines){const table=document.createElement('table');lines.filter((_,i)=>i!==1).forEach((line,i)=>{const tr=document.createElement('tr');line.replace(/^\||\|$/g,'').split('|').forEach(cell=>{const el=document.createElement(i?'td':'th');inline(el,cell.trim());tr.append(el);});table.append(tr);});return table;}
 function chartNode(raw){const box=document.createElement('div');box.className='chart';try{const d=JSON.parse(raw);const title=document.createElement('strong');title.textContent=d.title||'グラフ';box.append(title);const max=Math.max(...d.values,1);d.labels.forEach((label,i)=>{const row=document.createElement('div');row.style.cssText='display:grid;grid-template-columns:90px 1fr 45px;gap:8px;align-items:center;margin:8px 0;font-size:12px';const l=document.createElement('span'),track=document.createElement('span'),bar=document.createElement('i'),v=document.createElement('b');l.textContent=label;track.style.cssText='height:12px;background:var(--hover);border-radius:6px;overflow:hidden';bar.style.cssText=`display:block;height:100%;width:${Math.max(2,d.values[i]/max*100)}%;background:#4385f5;border-radius:6px`;v.textContent=d.values[i];track.append(bar);row.append(l,track,v);box.append(row);});}catch{const pre=document.createElement('pre');pre.textContent=raw;box.append(pre);}return box;}
@@ -47,41 +58,52 @@ function siteProjectNode(m){
  bubble.append(actions);article.append(bubble);return article;
 }
 function siteMessageNode(m){if(m.kind==='progress')return siteProgressNode(m);if(m.kind==='project')return siteProjectNode(m);const node=messageNode(m,Number.MIN_SAFE_INTEGER);if(m.role==='assistant'){const label=node.querySelector('.who span:last-child');if(label)label.textContent='Kuup Site Builder';}return node;}
-function renderSiteConversation(){const area=$('#messages');area.replaceChildren(...siteConversation.map(siteMessageNode));$('#welcome').hidden=true;$('#siteBuilderOpen').classList.add('active');$('#chatTitle').textContent='サイト制作';for(const id of ['rename','delete','export'])$('#'+id).disabled=true;requestAnimationFrame(()=>{area.scrollTop=area.scrollHeight;});}
-function addSiteStep(progress,label,stage){for(const s of progress.steps)s.state='done';const existing=progress.steps.find(s=>s.stage===stage);if(existing){existing.label=label;existing.state='active';}else progress.steps.push({stage,label,state:'active'});renderSiteConversation();}
+function renderSiteConversation(){
+ const area=$('#messages');area.replaceChildren(...siteConversation.map(siteMessageNode));
+ if(siteProjectStatus==='running'){const progress=siteConversation.findLast?.(m=>m.kind==='progress')||[...siteConversation].reverse().find(m=>m.kind==='progress');if(progress)area.append(siteProgressNode(progress));}
+ if(siteProject&&siteProjectStatus!=='running')area.append(siteProjectNode({project:siteProject,previewPath:sitePreviewPath}));
+ $('#welcome').hidden=true;$('#siteBuilderOpen').classList.add('active');$('#chatTitle').textContent=siteTitle||'サイト制作';for(const id of ['rename','delete','export'])$('#'+id).disabled=true;
+ const running=siteProjectStatus==='running';$('#send').hidden=running;$('#stop').hidden=!running;$('#stop').disabled=false;$('#prompt').disabled=running;requestAnimationFrame(()=>{area.scrollTop=area.scrollHeight;});
+}
+function siteStateMessages(data){
+ const result=(data.messages||[]).map(m=>({role:m.role,content:m.content}));
+ if(data.job){
+  const status=data.job.status==='complete'?'success':data.job.status==='error'?'error':data.job.status==='stopped'?'stopped':'working';
+  if(data.job.progress?.length||data.job.status==='running')result.push({role:'assistant',kind:'progress',steps:data.job.progress||[],status});
+ }
+ return result;
+}
+function applySiteProjectData(data,{renderNow=true}={}){
+ siteProjectId=data.id;siteProjectStatus=data.status||'idle';siteProject=data.project||null;sitePreviewPath=data.previewPath||'';sitePublished=data.published?{...data.published,url:'https://asro.jp/AI/kuup/'+encodeURIComponent($('#username').textContent)+'/'+encodeURIComponent(data.published.slug)}:null;siteTitle=data.title||'サイト制作';siteConversation=siteStateMessages(data);if(renderNow){updateModel();renderSiteConversation();renderHistory();}
+}
+async function pollSiteProject(id){
+ clearTimeout(sitePollTimer);if(!id)return;
+ try{const data=await api('/site-projects/'+id);if(siteMode&&siteProjectId===id)applySiteProjectData(data);await refresh();if(data.status==='running')sitePollTimer=setTimeout(()=>pollSiteProject(id),1200);else{await refreshUsage();}}
+ catch(e){if(siteMode&&siteProjectId===id)notice(e.message);}
+}
+async function openSiteProject(id){
+ if(busy&&generationController){generationController.abort();setBusy(false);}
+ siteMode=true;document.body.classList.add('site-mode');current=null;pendingAssets=[];renderPending();closePopovers();closeSitePreview();document.body.classList.remove('sidebar-open');
+ const data=await api('/site-projects/'+id);applySiteProjectData(data);if(data.status==='running')pollSiteProject(id);$('#prompt').focus();
+}
+async function sendSiteMessage(){
+ const text=$('#prompt').value.trim();if(!text||siteProjectStatus==='running')return;
+ if(!siteProjectId){const created=await api('/site-projects','POST',{});applySiteProjectData(created);}
+ $('#prompt').value='';await api('/site-projects/'+siteProjectId+'/messages','POST',{content:text});siteProjectStatus='running';await refresh();await pollSiteProject(siteProjectId);
+}
 function openSitePreview(path=sitePreviewPath){if(!path)return;sitePreviewPath=path;const frame=$('#sitePreviewFrame');frame.src=API_BASE+path+(path.includes('?')?'&':'?')+'v='+Date.now();$('#sitePreviewTitle').textContent=siteTitle||'Kuup Site';$('#sitePreviewDrawer').hidden=false;document.body.classList.add('site-preview-open');}
 function closeSitePreview(){$('#sitePreviewDrawer').hidden=true;document.body.classList.remove('site-preview-open');}
-async function publishSiteProject(){if(!siteProject)return;const result=await api('/sites','POST',{id:sitePublished?.id||null,title:siteTitle,project:siteProject});sitePublished=result;siteConversation.push({role:'assistant',content:`公開したよ。\n${result.url}`});renderSiteConversation();}
-async function revokeSiteProject(){if(!sitePublished)return;const old=sitePublished;await api('/sites/'+old.id,'DELETE');sitePublished=null;siteConversation.push({role:'assistant',content:'公開を取り消したよ。さっきのURLからはもう開けません。'});renderSiteConversation();}
-async function sendSiteMessage(){
- if(busy)return;const text=$('#prompt').value.trim();if(!text)return;siteConversation.push({role:'user',content:text});if(!siteProject&&siteTitle==='My Site')siteTitle=text.replace(/[。\n].*/s,'').slice(0,36)||'My Site';$('#prompt').value='';const progress={role:'assistant',kind:'progress',steps:[],status:'working'};siteConversation.push(progress);renderSiteConversation();
- siteGenerationController?.abort();siteGenerationController=new AbortController();const controller=siteGenerationController,requestId=crypto.randomUUID();setBusy(true);addSiteStep(progress,'依頼を確認しています…','start');
- try{
-  const res=await fetch(API_BASE+'/sites/generate',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+authToken},signal:controller.signal,body:JSON.stringify({prompt:text,project:siteProject,requestId})});
-  if(!res.ok){const body=await res.json();throw Error(body.error||'サイト作成を開始できませんでした。');}
-  const reader=res.body.getReader(),decoder=new TextDecoder();let buffer='',gotProject=false;
-  while(true){const {value,done}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});let pos;while((pos=buffer.indexOf('\n'))!==-1){const line=buffer.slice(0,pos);buffer=buffer.slice(pos+1);if(!line)continue;const event=JSON.parse(line);if(event.requestId&&event.requestId!==requestId)continue;
-   if(event.type==='status')addSiteStep(progress,event.label,event.stage||event.label);
-   if(event.type==='classification')addSiteStep(progress,`難易度 ${event.grade} と判定`,'classification');
-   if(event.type==='project'){siteProject=event.project;sitePreviewPath=event.previewPath;gotProject=true;progress.status='success';for(const s of progress.steps)s.state='done';renderSiteConversation();siteConversation.push({role:'assistant',kind:'project',project:siteProject,previewPath:sitePreviewPath});renderSiteConversation();openSitePreview(sitePreviewPath);}
-   if(event.type==='error')throw Error(event.message);
-  }}
-  if(!gotProject)throw Error('サイトの完成データを受け取れませんでした。');
- }catch(e){
-  const stopped=e.name==='AbortError';progress.status=stopped?'stopped':'error';
-  for(const s of progress.steps)if(s.state==='active')s.state=stopped?'stopped':'error';
-  const keep=siteProject?'\n前の完成版はそのまま残してあるから、プレビューや公開済みサイトには影響してないよ。':'';
-  siteConversation.push({role:'assistant',content:(stopped?'作成を停止しました。':'サイトを完成できませんでした。'+(e.message?' '+e.message:''))+keep});
-  renderSiteConversation();
- }
- finally{if(siteGenerationController===controller)siteGenerationController=null;setBusy(false);updateModel();try{await refreshUsage();}catch{}$('#prompt').focus();}
+async function publishSiteProject(){if(!siteProjectId||!siteProject)return;const result=await api('/site-projects/'+siteProjectId+'/publish','POST',{});sitePublished=result;const data=await api('/site-projects/'+siteProjectId);applySiteProjectData(data);}
+async function revokeSiteProject(){if(!siteProjectId||!sitePublished)return;await api('/site-projects/'+siteProjectId+'/publish','DELETE');sitePublished=null;const data=await api('/site-projects/'+siteProjectId);applySiteProjectData(data);}
+async function openSiteBuilder(){
+ if(busy&&generationController){generationController.abort();setBusy(false);}
+ const created=await api('/site-projects','POST',{});siteMode=true;document.body.classList.add('site-mode');current=null;pendingAssets=[];renderPending();closePopovers();closeSitePreview();applySiteProjectData(created);await refresh();document.body.classList.remove('sidebar-open');$('#prompt').focus();
 }
-function openSiteBuilder(){if(busy)return;siteMode=true;document.body.classList.add('site-mode');siteConversation=[{role:'assistant',content:'作りたいサイトを教えて。\n最初に低モデルが依頼を読んで A / B / C で難易度を決めて、そこから使うモデルを自動で選ぶよ。完成したらこのまま「ここを変えて」で続けて修正できる。失敗したときは前の完成版を残す。'}];siteProject=null;sitePreviewPath='';sitePublished=null;siteTitle='My Site';pendingAssets=[];renderPending();current=null;closePopovers();closeSitePreview();updateModel();render();document.body.classList.remove('sidebar-open');$('#prompt').focus();}
 function messageNode(m,index){const article=document.createElement('article');article.className='message '+m.role;const bubble=document.createElement('div');bubble.className='bubble';if(m.role==='assistant'){const who=document.createElement('div');who.className='who';const logo=document.createElement('span');logo.className='mini-logo';logo.textContent='';const label=document.createElement('span');label.textContent=`Kuup AI${m.status==='interrupted'?' · 中断':''}`;who.append(logo,label);article.append(who);}const content=document.createElement('div');content.className='content';if(m.image){const img=document.createElement('img');img.className='generated-image';img.src=m.image;img.alt=m.content;content.append(img);const p=document.createElement('p');p.textContent=m.content;content.append(p);}else if(busy&&m.role==='assistant'&&!m.content){const dots=document.createElement('span');dots.className='thinking-dots';dots.setAttribute('aria-label','回答を生成しています');for(let n=0;n<3;n++)dots.append(document.createElement('i'));content.append(dots);}else format(content,m.content||'');for(const asset of m.assets||[]){const holder=document.createElement('div');holder.className='asset-holder';holder.textContent=asset.name;content.append(holder);loadMedia(asset,holder);}bubble.append(content);if(m.sources?.length)bubble.append(sourcesNode(m.sources));article.append(bubble);if(m.role==='assistant'&&(m.content||m.image)){const tools=document.createElement('div');tools.className='message-tools';const copy=document.createElement('button');copy.textContent='コピー';copy.onclick=safe(async()=>{await navigator.clipboard.writeText(m.content);copy.textContent='コピー済み';});tools.append(copy);if(index===conversation.length-1&&!m.image){const retry=document.createElement('button');retry.textContent='↻ 再生成';retry.disabled=busy;retry.onclick=safe(()=>send(true));tools.append(retry);}article.append(tools);}return article;}
 function render(){if(siteMode){renderSiteConversation();return;}const area=$('#messages');area.replaceChildren(...conversation.map(messageNode));$('#welcome').hidden=conversation.length>0;$('#siteBuilderOpen').classList.remove('active');for(const id of ['rename','delete','export'])$('#'+id).disabled=!current||busy;}
-function setBusy(v,mode='generation'){busy=v;const generating=v&&mode==='generation';document.body.classList.toggle('generating',generating);$('#messages').setAttribute('aria-busy',String(generating));$('#send').hidden=generating;$('#send').disabled=v;$('#stop').hidden=!generating;$('#stop').disabled=false;$('#prompt').disabled=v;$('#fileInput').disabled=v;$('#modelButton').disabled=v;$('#newChat').disabled=v;$('#logout').disabled=v;$('#attachButton').disabled=v;renderHistory();render();}
-async function openChat(id){if(busy)return;siteMode=false;document.body.classList.remove('site-mode');closeSitePreview();updateModel();pendingAssets=[];renderPending();const c=await api('/chats/'+id);current=id;conversation=c.messages;notice();render();renderHistory();$('#chatTitle').textContent=c.title;document.body.classList.remove('sidebar-open');$('#messages').scrollTop=$('#messages').scrollHeight;}
-function newChat(){if(busy)return;siteMode=false;document.body.classList.remove('site-mode');closeSitePreview();updateModel();pendingAssets=[];renderPending();current=null;conversation=[];$('#chatTitle').textContent='新しいチャット';render();renderHistory();notice();$('#prompt').focus();document.body.classList.remove('sidebar-open');}
+function setBusy(v,mode='generation'){busy=v;const generating=v&&mode==='generation'&&!siteMode;document.body.classList.toggle('generating',generating);$('#messages').setAttribute('aria-busy',String(generating));$('#send').hidden=generating;$('#send').disabled=v;$('#stop').hidden=!generating;$('#stop').disabled=false;$('#prompt').disabled=v;$('#fileInput').disabled=v;$('#modelButton').disabled=v;$('#logout').disabled=v;$('#attachButton').disabled=v;renderHistory();render();}
+async function openChat(id){clearTimeout(sitePollTimer);if(busy&&generationController){generationController.abort();setBusy(false);}siteMode=false;siteProjectId=null;clearTimeout(sitePollTimer);document.body.classList.remove('site-mode');closeSitePreview();updateModel();pendingAssets=[];renderPending();const c=await api('/chats/'+id);current=id;conversation=c.messages;notice();render();renderHistory();$('#chatTitle').textContent=c.title;document.body.classList.remove('sidebar-open');$('#messages').scrollTop=$('#messages').scrollHeight;}
+function newChat(){clearTimeout(sitePollTimer);if(busy&&generationController){generationController.abort();setBusy(false);}siteMode=false;document.body.classList.remove('site-mode');closeSitePreview();updateModel();pendingAssets=[];renderPending();current=null;conversation=[];$('#chatTitle').textContent='新しいチャット';render();renderHistory();notice();$('#prompt').focus();document.body.classList.remove('sidebar-open');}
 function showToolStatus(event){const el=$('#toolStatus');el.classList.remove('search-wave');el.removeAttribute('aria-label');el.replaceChildren();if(event.name==='web_search'&&event.state==='done'){el.hidden=true;return;}el.hidden=false;if(event.name==='web_search'&&event.state==='running'){el.classList.add('search-wave');el.setAttribute('aria-label','検索中');const icon=document.createElement('span');icon.className='search-icon';icon.textContent='⌕';icon.setAttribute('aria-hidden','true');el.append(icon);for(const char of '検索中'){const letter=document.createElement('span');letter.className='search-letter';letter.textContent=char;letter.setAttribute('aria-hidden','true');el.append(letter);}return;}el.textContent=(event.name==='schoollink_search'?'🏫 ':'')+event.label;}
 async function send(regenerate=false){
  if(busy)return;if(quality==='image'&&!regenerate)return generateImage();if(quality==='image'&&regenerate){notice('再生成する回答の精度を「低・中・高」から選んでください。');return;}
@@ -111,7 +133,7 @@ async function send(regenerate=false){
 
 $('#composer').onsubmit=safe(e=>{e.preventDefault();return siteMode?sendSiteMessage():send();});$('#prompt').oninput=e=>{e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,180)+'px';};$('#prompt').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&!matchMedia('(pointer: coarse)').matches){e.preventDefault();safe(()=>siteMode?sendSiteMessage():send())();}};
 $('#modelButton').onclick=e=>{if(siteMode)return;e.stopPropagation();const m=$('#modelMenu');closePopovers(m);m.hidden=!m.hidden;};$$('[data-quality]').forEach(b=>b.onclick=()=>{if(busy)return;quality=b.dataset.quality;localStorage.setItem('somenai-quality',quality);updateModel();$('#modelMenu').hidden=true;});$('#moreButton').onclick=e=>{e.stopPropagation();const m=$('#moreMenu');closePopovers(m);m.hidden=!m.hidden;};document.addEventListener('click',()=>closePopovers());
-$('#newChat').onclick=newChat;$('#search').oninput=renderHistory;$('#stop').onclick=safe(async()=>{$('#stop').disabled=true;$('#toolStatus').hidden=false;$('#toolStatus').textContent='停止しています…';if(siteMode){const stopping=api('/sites/stop','POST',{});siteGenerationController?.abort();await stopping;}else{const stopping=api('/chats/'+current+'/stop','POST',{});generationController?.abort();await stopping;}});$('#menu').onclick=()=>document.body.classList.add('sidebar-open');$('#closeSide').onclick=$('#scrim').onclick=()=>document.body.classList.remove('sidebar-open');
+$('#newChat').onclick=newChat;$('#search').oninput=renderHistory;$('#stop').onclick=safe(async()=>{$('#stop').disabled=true;$('#toolStatus').hidden=false;$('#toolStatus').textContent='停止しています…';if(siteMode&&siteProjectId){await api('/site-projects/'+siteProjectId+'/stop','POST',{});siteProjectStatus='stopped';await pollSiteProject(siteProjectId);}else{const stopping=api('/chats/'+current+'/stop','POST',{});generationController?.abort();await stopping;}});$('#menu').onclick=()=>document.body.classList.add('sidebar-open');$('#closeSide').onclick=$('#scrim').onclick=()=>document.body.classList.remove('sidebar-open');
 $('#themeToggle').onclick=()=>{document.body.classList.toggle('dark');localStorage.setItem('somenai-theme',document.body.classList.contains('dark')?'dark':'light');};document.body.classList.remove('dark');
 $('#settingsOpen').onclick=safe(async()=>{$('#settingsDialog').showModal();const me=await api('/me');$('#adminInvites').hidden=!me.isAdmin;$('#issuedInvite').hidden=true;$('#inviteIssueStatus').textContent='';settings=await api('/settings');await refreshUsage();$('#studyMode').checked=!!settings.studyMode;$$('[data-web]').forEach(b=>b.classList.toggle('active',b.dataset.web===settings.webMode));$('#settingsDialog').showModal();});let issuedInviteSvg='';
 $('#issueInvite').onclick=safe(async()=>{const button=$('#issueInvite');button.disabled=true;$('#inviteIssueStatus').textContent='発行しています…';try{const invite=await api('/admin/invites','POST',{});issuedInviteSvg=invite.svg;$('#inviteImage').src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(invite.svg);$('#inviteExpiry').textContent='有効期限: '+new Date(invite.expires).toLocaleString('ja-JP');$('#issuedInvite').hidden=false;$('#inviteIssueStatus').textContent='発行しました。同じQRで複数人登録できます。';}catch(e){$('#inviteIssueStatus').textContent=e.message;}finally{button.disabled=false;}});
@@ -240,18 +262,19 @@ let actionChatId=null;
 function openRename(id){actionChatId=id;$('#editTitle').value=chats.find(c=>c.id===id)?.title||'';$('#editDialog').showModal();}
 function openDelete(id){actionChatId=id;$('#deleteDialog').showModal();}
 function historyActions(id){if(busy)return;actionChatId=id;$('#chatActionTitle').textContent=chats.find(c=>c.id===id)?.title||'チャットの操作';$('#chatActions').showModal();}
+function siteHistoryActions(project){if(confirm('「'+project.title+'」を削除する？ 制作履歴と公開中のサイトも削除されます。'))safe(async()=>{await api('/site-projects/'+project.id,'DELETE');if(siteMode&&siteProjectId===project.id)newChat();await refresh();})();}
 function bindHistoryActions(button,chat){
  let timer=null,startX=0,startY=0,held=false;const clear=()=>{clearTimeout(timer);timer=null;};
- button.onpointerdown=e=>{if(e.button!==0||busy)return;held=false;startX=e.clientX;startY=e.clientY;timer=setTimeout(()=>{held=true;historyActions(chat.id);},550);};
+ button.onpointerdown=e=>{if(e.button!==0||busy)return;held=false;startX=e.clientX;startY=e.clientY;timer=setTimeout(()=>{held=true;chat.kind==='site'?siteHistoryActions(chat):historyActions(chat.id);},550);};
  button.onpointermove=e=>{if(Math.hypot(e.clientX-startX,e.clientY-startY)>10)clear();};
  button.onpointerup=button.onpointercancel=button.onpointerleave=clear;
- button.oncontextmenu=e=>{e.preventDefault();clear();held=true;historyActions(chat.id);};
- button.onclick=safe(()=>{clear();if(held){held=false;return;}return openChat(chat.id);});
- button.onkeydown=e=>{if((e.shiftKey&&e.key==='F10')||e.key==='ContextMenu'){e.preventDefault();historyActions(chat.id);}};
+ button.oncontextmenu=e=>{e.preventDefault();clear();held=true;chat.kind==='site'?siteHistoryActions(chat):historyActions(chat.id);};
+ button.onclick=safe(()=>{clear();if(held){held=false;return;}return chat.kind==='site'?openSiteProject(chat.id):openChat(chat.id);});
+ button.onkeydown=e=>{if((e.shiftKey&&e.key==='F10')||e.key==='ContextMenu'){e.preventDefault();chat.kind==='site'?siteHistoryActions(chat):historyActions(chat.id);}};
 }
 $('#chatActionsClose').onclick=()=>$('#chatActions').close();
 $('#historyRename').onclick=()=>{$('#chatActions').close();openRename(actionChatId);};
 $('#historyDelete').onclick=()=>{$('#chatActions').close();openDelete(actionChatId);};
-setInterval(()=>{if(authToken&&!busy)refreshUsage().catch(()=>{});},60000);
+setInterval(()=>{if(authToken)refresh().catch(()=>{});},2500);setInterval(()=>{if(authToken)refreshUsage().catch(()=>{});},60000);
 applyAppearance({});
 init();
