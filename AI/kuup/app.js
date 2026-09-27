@@ -1,6 +1,6 @@
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const API_BASE=(window.SOMENAI_API_BASE||'').replace(/\/$/,'');
-let authToken=localStorage.getItem('somenai-token')||'',chats=[],current=null,conversation=[],busy=false,register=false,config,usageState,settings={studyMode:0,webMode:'auto'},generationController=null,generationRequestId='',siteMode=false,siteConversation=[],siteGenerationController=null,siteProjectId=null,siteProjectStatus='idle',siteProject=null,sitePreviewPath='',sitePublished=null,siteTitle='My Site',sitePollTimer=0,siteGitHub=null,githubConnection=null,githubRepos=[],quality=['low','normal','high','image'].includes(localStorage.getItem('somenai-quality'))?localStorage.getItem('somenai-quality'):'normal',imageMode=false;
+let authToken=localStorage.getItem('somenai-token')||'',chats=[],current=null,conversation=[],busy=false,register=false,config,usageState,settings={studyMode:0,webMode:'auto'},generationController=null,generationRequestId='',siteMode=false,siteConversation=[],siteGenerationController=null,siteProjectId=null,siteProjectStatus='idle',siteProject=null,sitePreviewPath='',sitePublished=null,siteTitle='My Site',sitePollTimer=0,siteGitHub=null,siteCapabilities={},githubConnection=null,githubRepos=[],quality=['low','normal','high','image'].includes(localStorage.getItem('somenai-quality'))?localStorage.getItem('somenai-quality'):'normal',imageMode=false;
 const qualityInfo={low:{label:'低',color:'green'},normal:{label:'中',color:'blue'},high:{label:'高',color:'purple'},image:{label:'画像生成',color:'orange'}};
 const notice=s=>$('#notice').textContent=s||'';
 function clearPromptBox(){const el=$('#prompt');el.value='';el.style.height='';el.scrollTop=0;}
@@ -85,7 +85,7 @@ function siteProjectNode(m){
  const files=document.createElement('div');files.className='site-file-list';const projectFiles=m.project?.files||[],visible=projectFiles.slice(0,24);for(const file of visible){const chip=document.createElement('span');chip.textContent=file.path;files.append(chip);}if(projectFiles.length>visible.length){const more=document.createElement('span');more.textContent='+'+(projectFiles.length-visible.length)+' ファイル';files.append(more);}bubble.append(files);
  const actions=document.createElement('div');actions.className='site-project-actions';
  if(isRepo&&m.project?.source?.autoSave){const auto=document.createElement('span');auto.className='site-github-autosave';auto.textContent='GitHub自動保存 ON';actions.append(auto);}
- if(m.previewPath){const publish=document.createElement('button');publish.type='button';publish.textContent=sitePublished?'公開内容を更新':(isRepo?'サイト公開':'公開する');publish.onclick=safe(publishSiteProject);actions.append(publish);}
+ if(m.previewPath){const publish=document.createElement('button');publish.type='button';publish.disabled=siteProjectStatus==='running'||siteCapabilities.canPublish===false;publish.textContent=siteProjectStatus==='running'?'作業完了後に公開':sitePublished?'公開内容を更新':(isRepo?'サイト公開':'公開する');publish.onclick=safe(publishSiteProject);actions.append(publish);}
  const github=document.createElement('button');github.type='button';github.className='site-github-button';github.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .8a11.4 11.4 0 0 0-3.6 22.2c.6.1.8-.3.8-.6v-2.2c-3.3.7-4-1.4-4-1.4-.5-1.4-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.5-1.3-5.5-6a4.7 4.7 0 0 1 1.3-3.2c-.1-.3-.6-1.6.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.7 1.6.3 2.9.1 3.2a4.7 4.7 0 0 1 1.3 3.2c0 4.6-2.8 5.7-5.5 6 .4.4.8 1.1.8 2.2v3.2c0 .3.2.7.8.6A11.4 11.4 0 0 0 12 .8Z"/></svg><span>'+(siteGitHub?(isRepo?'GitHubへ変更を保存':'GitHubを更新'):'GitHubへ保存')+'</span>';github.onclick=safe(openGitHubExport);if(siteProjectStatus==='running'){github.disabled=true;const label=github.querySelector('span');if(label)label.textContent='作業完了後にGitHubへ保存';}actions.append(github);
  if(sitePublished){const open=document.createElement('a');open.href=sitePublished.url;open.target='_blank';open.rel='noopener';open.textContent='公開ページ ↗';actions.append(open);const copyUrl=document.createElement('button');copyUrl.type='button';copyUrl.textContent='URLをコピー';copyUrl.onclick=safe(async()=>{await copyCodeText(sitePublished.url);copyUrl.textContent='コピーしました';setTimeout(()=>{if(copyUrl.isConnected)copyUrl.textContent='URLをコピー';},1000);});actions.append(copyUrl);const revoke=document.createElement('button');revoke.type='button';revoke.className='site-revoke';revoke.textContent='公開を取り消す';revoke.onclick=safe(revokeSiteProject);actions.append(revoke);}
  bubble.append(actions);article.append(bubble);return article;
@@ -116,7 +116,11 @@ function siteStateMessages(data){
  return result;
 }
 function applySiteProjectData(data,{renderNow=true}={}){
- siteProjectId=data.id;siteProjectStatus=data.status||'idle';siteProject=data.project||null;sitePreviewPath=data.previewPath||'';sitePublished=data.published?{...data.published,url:'https://asro.jp/AI/kuup/'+encodeURIComponent($('#username').textContent)+'/'+encodeURIComponent(data.published.slug)}:null;siteGitHub=data.github||null;siteTitle=data.title||'Kuup Cook';siteConversation=siteStateMessages(data);if(renderNow){updateModel();renderSiteConversation();renderHistory();}
+ siteProjectId=data.id;siteProjectStatus=data.status||'idle';siteProject=data.project||null;sitePreviewPath=data.previewPath||'';
+ const fallbackPublishedUrl=data.published?.slug?'https://asro.jp/AI/kuup/'+encodeURIComponent($('#username').textContent)+'/'+encodeURIComponent(data.published.slug):'';
+ sitePublished=data.published?{...data.published,url:data.published.url||fallbackPublishedUrl}:null;siteGitHub=data.github||null;
+ siteCapabilities=data.capabilities||{mode:siteProject?.mode==='repo'?'repo':'site',fileCount:siteProject?.files?.length||0,canPreview:!!sitePreviewPath,canPublish:!!sitePreviewPath&&siteProjectStatus!=='running',canGitHubSave:!!siteProject,gitHubAutoSave:!!siteProject?.source?.autoSave};
+ siteTitle=data.title||'Kuup Cook';siteConversation=siteStateMessages(data);if(renderNow){updateModel();renderSiteConversation();renderHistory();}
 }
 async function pollSiteProject(id){
  clearTimeout(sitePollTimer);if(!id)return;
@@ -127,7 +131,7 @@ async function pollSiteProject(id){
   if(siteMode&&siteProjectId===id)notice(e.message);return;
  }
  const before=siteProjectStatus;
- if(siteMode&&siteProjectId===id){applySiteProjectData(data);if(before==='running'&&data.status==='complete'&&!$('#sitePreviewDrawer').hidden&&data.previewPath)openSitePreview(data.previewPath);}
+ if(siteMode&&siteProjectId===id){applySiteProjectData(data);if(before==='running'&&data.status==='complete'&&data.previewPath){const shouldOpen=data.project?.mode!=='repo'||!$('#sitePreviewDrawer').hidden;if(shouldOpen)openSitePreview(data.previewPath);}}
  try{await refresh();}catch{}
  if(data.status==='running'&&siteMode&&siteProjectId===id){sitePollTimer=setTimeout(()=>pollSiteProject(id),1200);return;}
  if(data.status!=='running'){try{await refreshUsage();}catch{}}
@@ -138,8 +142,25 @@ async function openSiteProject(id){
  siteMode=true;document.body.classList.add('site-mode');current=null;pendingAssets=[];renderPending();closePopovers();closeSitePreview();document.body.classList.remove('sidebar-open');
  const data=await api('/site-projects/'+id);applySiteProjectData(data,{renderNow:false});updateModel();renderSiteConversation({forceBottom:true});renderHistory();if(data.status==='running')pollSiteProject(id);$('#prompt').focus();
 }
+function cookActionIntent(text){
+ const t=String(text||'').normalize('NFKC').trim().replace(/[。.!！?？]+$/,'').replace(/\s+/g,'').replace(/github/ig,'GitHub');
+ if(/^(?:この)?(?:サイト|ページ)?(?:を)?(?:プレビューして|プレビューする|見せて|表示して)$/.test(t))return 'preview';
+ if(/^(?:この)?(?:サイト|ページ)?(?:を)?(?:公開して|公開する|デプロイして|デプロイする)$/.test(t))return 'publish';
+ if(/^(?:この)?(?:サイト|ページ)?(?:の)?(?:公開を取り消して|公開を停止して|非公開にして)$/.test(t))return 'unpublish';
+ if(/^(?:この)?(?:変更|サイト|プロジェクト)?(?:を)?GitHub(?:に|へ)?(?:保存して|保存する|反映して|反映する)$/.test(t))return 'github';
+ return '';
+}
+async function runCookActionIntent(intent){
+ if(!siteProjectId||!siteProject)return false;
+ if(intent==='preview'){if(!sitePreviewPath)throw Error('まだプレビューできる画面がありません。まずCookに作成を頼んでね。');clearPromptBox();await openSitePreview(sitePreviewPath);notice('プレビューを開いたよ。');return true;}
+ if(intent==='publish'){if(siteProjectStatus==='running')throw Error('Cookが作業中です。完成したらそのまま公開できるよ。');if(!sitePreviewPath)throw Error('このプロジェクトには公開できる index.html がありません。');clearPromptBox();await publishSiteProject();return true;}
+ if(intent==='unpublish'){if(!sitePublished)throw Error('このサイトはまだ公開されていません。');clearPromptBox();await revokeSiteProject();return true;}
+ if(intent==='github'){clearPromptBox();if(siteCapabilities.gitHubAutoSave){notice('GitHub自動保存はONだよ。Cookの変更はテスト通過後に自動で保存される。');return true;}await openGitHubExport();return true;}
+ return false;
+}
 async function sendSiteMessage(){
  const text=$('#prompt').value.trim();if(!text||siteProjectStatus==='running')return;
+ const action=cookActionIntent(text);if(action&&siteProjectId&&siteProject){await runCookActionIntent(action);return;}
  if(!siteProjectId){
   const created=await api('/site-projects','POST',{prompt:text});applySiteProjectData(created,{renderNow:false});
   siteConversation=siteStateMessages(created);if(!siteConversation.length)siteConversation=[{role:'assistant',content:'作業を始めたよ。別のチャットへ移動してもバックグラウンドで続くよ。'}];
@@ -153,12 +174,12 @@ async function openSitePreview(path=sitePreviewPath){
  catch(e){title.textContent='プレビューを開けませんでした';notice(e.message);}
 }
 function closeSitePreview(){$('#sitePreviewDrawer').hidden=true;document.body.classList.remove('site-preview-open');}
-async function publishSiteProject(){if(!siteProjectId||!siteProject)return;const result=await api('/site-projects/'+siteProjectId+'/publish','POST',{});sitePublished=result;const data=await api('/site-projects/'+siteProjectId);applySiteProjectData(data);}
-async function revokeSiteProject(){if(!siteProjectId||!sitePublished)return;await api('/site-projects/'+siteProjectId+'/publish','DELETE');sitePublished=null;const data=await api('/site-projects/'+siteProjectId);applySiteProjectData(data);}
+async function publishSiteProject(){if(!siteProjectId||!siteProject)return;const result=await api('/site-projects/'+siteProjectId+'/publish','POST',{});sitePublished=result;const data=await api('/site-projects/'+siteProjectId);applySiteProjectData(data);notice('公開したよ ✓ '+(sitePublished?.url||result.url||''));}
+async function revokeSiteProject(){if(!siteProjectId||!sitePublished)return;await api('/site-projects/'+siteProjectId+'/publish','DELETE');sitePublished=null;const data=await api('/site-projects/'+siteProjectId);applySiteProjectData(data);notice('公開を取り消したよ。');}
 async function openSiteBuilder(){
  if(busy&&generationController){generationController.abort();setBusy(false);}
  clearTimeout(sitePollTimer);siteMode=true;document.body.classList.add('site-mode');current=null;pendingAssets=[];renderPending();closePopovers();closeSitePreview();
- siteProjectId=null;siteProjectStatus='idle';siteProject=null;sitePreviewPath='';sitePublished=null;siteGitHub=null;siteTitle='新しいCook';
+ siteProjectId=null;siteProjectStatus='idle';siteProject=null;sitePreviewPath='';sitePublished=null;siteGitHub=null;siteCapabilities={};siteTitle='新しいCook';
  clearPromptBox();siteConversation=[{role:'assistant',content:'やりたいことをそのまま言って。GitHub接続済みなら「Experiment2に○○を作って」「ASRO-Doの○○を直して」だけで、リポジトリを探して作業できるよ。空のリポジトリでも0から作れる。'}];
  updateModel();render();renderHistory();document.body.classList.remove('sidebar-open');$('#prompt').focus();
 }
