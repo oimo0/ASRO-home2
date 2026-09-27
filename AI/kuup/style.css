@@ -132,3 +132,6 @@ body:not(.dark) .orb{display:none}
 .dark .site-progress-card.error{background:#321f22;border-color:#653239}
 .site-progress-step.error{color:#ba4038;font-weight:650}.site-progress-step.error>span:first-child{color:#ba4038}
 .site-progress-step.stopped{color:var(--muted)}.site-progress-step.stopped>span:first-child{color:var(--muted)}
+
+.site-progress-retry{margin-top:10px;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--text);font-size:10px;font-weight:650}
+.site-progress-retry:hover{background:var(--soft)}
