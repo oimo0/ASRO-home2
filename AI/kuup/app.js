@@ -117,8 +117,18 @@ function applySiteProjectData(data,{renderNow=true}={}){
 }
 async function pollSiteProject(id){
  clearTimeout(sitePollTimer);if(!id)return;
- try{const before=siteProjectStatus,data=await api('/site-projects/'+id);if(siteMode&&siteProjectId===id){applySiteProjectData(data);if(before==='running'&&data.status==='complete'&&!$('#sitePreviewDrawer').hidden&&data.previewPath)openSitePreview(data.previewPath);}await refresh();if(data.status==='running'&&siteMode&&siteProjectId===id)sitePollTimer=setTimeout(()=>pollSiteProject(id),1200);else if(data.status!=='running'){await refreshUsage();}}
- catch(e){if(siteMode&&siteProjectId===id)notice(e.message);}
+ let data=null;
+ try{data=await api('/site-projects/'+id);}
+ catch(e){
+  if(siteMode&&siteProjectId===id&&siteProjectStatus==='running'){sitePollTimer=setTimeout(()=>pollSiteProject(id),1800);return;}
+  if(siteMode&&siteProjectId===id)notice(e.message);return;
+ }
+ const before=siteProjectStatus;
+ if(siteMode&&siteProjectId===id){applySiteProjectData(data);if(before==='running'&&data.status==='complete'&&!$('#sitePreviewDrawer').hidden&&data.previewPath)openSitePreview(data.previewPath);}
+ try{await refresh();}catch{}
+ if(data.status==='running'&&siteMode&&siteProjectId===id){sitePollTimer=setTimeout(()=>pollSiteProject(id),1200);return;}
+ if(data.status!=='running'){try{await refreshUsage();}catch{}}
+ if($('#notice').textContent==='Kuup AIサーバーに接続できません。')notice('');
 }
 async function openSiteProject(id){
  if(busy&&generationController){generationController.abort();setBusy(false);}
