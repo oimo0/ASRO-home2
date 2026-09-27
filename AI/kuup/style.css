@@ -64,3 +64,9 @@ body:not(.dark) .orb{display:none}
 .header-mark{display:block;width:24px;height:24px;object-fit:contain;border-radius:6px}
 .mini-logo,.hero-mark.mini{background:#fff url('./kuup-mark.jpg') center / contain no-repeat;color:transparent}
 @media(max-width:480px){.hero-wordmark{width:min(330px,76vw)}}
+
+/* Keep the welcome header reachable when iPad browser chrome reduces the viewport. */
+#welcome{justify-content:flex-start}
+#welcome>.hero-wordmark{flex-shrink:0;margin-top:auto}
+#welcome>.kicker,#welcome>h1,#welcome>.hero-copy,#welcome>.prompt-grid{flex-shrink:0}
+#welcome>.prompt-grid{margin-bottom:auto}
