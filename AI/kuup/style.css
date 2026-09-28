@@ -184,15 +184,58 @@ body:not(.dark) .orb{display:none}
 .site-change-line{display:grid;grid-template-columns:18px minmax(0,1fr);gap:7px;align-items:center;font-size:.8rem}.site-change-line code{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.site-change-line.added>span{color:#187b4d}.site-change-line.modified>span{color:#806700}.site-change-line.deleted>span{color:#b03232}
 .site-check-results summary{cursor:pointer;font-weight:700;font-size:.84rem}.site-check-results>div{display:grid;gap:5px;margin-top:9px;font-size:.78rem;color:#566170}
 
-/* Mobile: render Markdown tables as readable cards instead of ultra-narrow columns. */
+/* Mobile: keep Markdown tables wide and horizontally scrollable. */
 @media(max-width:540px){
- .content .table-wrap{margin:14px 0;border:0;overflow:visible}
- .content table{min-width:0;width:100%;display:block;background:transparent}
- .content .table-header-row{display:none}
- .content table tr:not(.table-header-row){display:block;margin:0 0 12px;border:1px solid var(--line);border-radius:14px;background:var(--surface);overflow:hidden;box-shadow:0 1px 2px #00000008}
- .content table td{display:grid;grid-template-columns:minmax(88px,34%) minmax(0,1fr);gap:10px;padding:10px 12px;border:0;border-bottom:1px solid var(--line);font-size:14px;line-height:1.6;min-width:0}
- .content table td:last-child{border-bottom:0}
- .content table td::before{content:attr(data-label);font-size:11px;font-weight:700;color:var(--muted);line-height:1.5;padding-top:2px}
- .content table td:first-child{grid-template-columns:1fr;font-size:16px;font-weight:750;background:var(--soft);padding:12px}
- .content table td:first-child::before{display:none}
+ .content .table-wrap{
+   margin:14px 0;
+   width:100%;
+   max-width:100%;
+   overflow-x:auto;
+   overflow-y:hidden;
+   -webkit-overflow-scrolling:touch;
+   scrollbar-width:thin;
+   border:1px solid var(--line);
+   border-radius:12px;
+ }
+ .content table{
+   display:table;
+   width:max-content;
+   min-width:760px;
+   max-width:none;
+   background:var(--surface);
+ }
+ .content table tr{
+   display:table-row;
+   margin:0;
+   border:0;
+   border-radius:0;
+   box-shadow:none;
+ }
+ .content table th,
+ .content table td{
+   display:table-cell;
+   min-width:0;
+   padding:11px 13px;
+   border:1px solid var(--line);
+   font-size:14px;
+   line-height:1.65;
+   vertical-align:top;
+   overflow-wrap:anywhere;
+ }
+ .content table th{
+   font-size:14px;
+   font-weight:700;
+   white-space:normal;
+   background:var(--soft);
+ }
+ .content table td::before{
+   content:none;
+ }
+ .content table td:first-child{
+   display:table-cell;
+   font-size:14px;
+   font-weight:600;
+   background:transparent;
+   padding:11px 13px;
+ }
 }
