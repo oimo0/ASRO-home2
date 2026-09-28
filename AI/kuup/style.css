@@ -190,18 +190,21 @@ body:not(.dark) .orb{display:none}
    margin:14px 0;
    width:100%;
    max-width:100%;
-   overflow-x:auto;
+   overflow-x:auto !important;
    overflow-y:hidden;
    -webkit-overflow-scrolling:touch;
+   touch-action:pan-x pan-y;
+   overscroll-behavior-x:contain;
    scrollbar-width:thin;
    border:1px solid var(--line);
    border-radius:12px;
  }
  .content table{
    display:table;
-   width:max-content;
-   min-width:760px;
-   max-width:none;
+   width:900px !important;
+   min-width:900px !important;
+   max-width:none !important;
+   table-layout:auto;
    background:var(--surface);
  }
  .content table tr{
