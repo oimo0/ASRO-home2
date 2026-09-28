@@ -35,24 +35,43 @@ function renderHistory(){
 async function refresh(){chats=await api('/chats');renderHistory();const selected=siteMode?chats.find(c=>c.kind==='site'&&c.id===siteProjectId):chats.find(c=>(c.kind||'chat')==='chat'&&c.id===current);$('#chatTitle').textContent=selected?.title||(siteMode?'Kuup Cook':'新しいチャット');}
 function inline(el,text){const parts=text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);for(const p of parts){if(p.startsWith('**')&&p.endsWith('**')){const n=document.createElement('strong');n.textContent=p.slice(2,-2);el.append(n);}else if(p.startsWith('`')&&p.endsWith('`')){const n=document.createElement('code');n.textContent=p.slice(1,-1);el.append(n);}else el.append(document.createTextNode(p));}}
 function tableNode(lines){
- const wrap=document.createElement('div');wrap.className='table-wrap';
- const table=document.createElement('table');table.setAttribute('role','table');
+ const wrap=document.createElement('div');
+ wrap.className='table-wrap';
+ wrap.style.cssText='display:block;width:100%;max-width:100%;min-width:0;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-x;overscroll-behavior-x:contain;box-sizing:border-box;';
+ const table=document.createElement('table');
+ table.setAttribute('role','table');
  const rows=lines.filter((_,i)=>i!==1).map((line,i)=>{
   const tr=document.createElement('tr');
   line.replace(/^\||\|$/g,'').split('|').forEach(cell=>{
-   const el=document.createElement(i?'td':'th');inline(el,cell.trim());tr.append(el);
+   const el=document.createElement(i?'td':'th');
+   inline(el,cell.trim());
+   tr.append(el);
   });
   if(i===0)tr.classList.add('table-header-row');
   return tr;
  });
+ const columnCount=Math.max(1,...rows.map(row=>row.children.length));
+ const tableWidth=Math.max(1000,columnCount*240);
+ const colgroup=document.createElement('colgroup');
+ for(let i=0;i<columnCount;i++){
+  const col=document.createElement('col');
+  col.style.width='240px';
+  colgroup.append(col);
+ }
+ table.append(colgroup);
+ table.style.cssText='display:table!important;width:'+tableWidth+'px!important;min-width:'+tableWidth+'px!important;max-width:none!important;table-layout:fixed!important;border-collapse:collapse;';
+ rows[0]?.children && [...rows[0].children].forEach((el,j)=>{el.style.width='240px';el.style.minWidth='240px';});
  const headers=rows[0]?[...rows[0].children].map(el=>el.textContent.trim()):[];
  rows.forEach((tr,i)=>{
   [...tr.children].forEach((el,j)=>{
+   el.style.width='240px';
+   el.style.minWidth='240px';
    if(i>0&&el.tagName==='TD')el.dataset.label=headers[j]||'項目';
   });
   table.append(tr);
  });
- wrap.append(table);return wrap;
+ wrap.append(table);
+ return wrap;
 }
 function chartNode(raw){const box=document.createElement('div');box.className='chart';try{const d=JSON.parse(raw);const title=document.createElement('strong');title.textContent=d.title||'グラフ';box.append(title);const max=Math.max(...d.values,1);d.labels.forEach((label,i)=>{const row=document.createElement('div');row.style.cssText='display:grid;grid-template-columns:90px 1fr 45px;gap:8px;align-items:center;margin:8px 0;font-size:12px';const l=document.createElement('span'),track=document.createElement('span'),bar=document.createElement('i'),v=document.createElement('b');l.textContent=label;track.style.cssText='height:12px;background:var(--hover);border-radius:6px;overflow:hidden';bar.style.cssText=`display:block;height:100%;width:${Math.max(2,d.values[i]/max*100)}%;background:#4385f5;border-radius:6px`;v.textContent=d.values[i];track.append(bar);row.append(l,track,v);box.append(row);});}catch{const pre=document.createElement('pre');pre.textContent=raw;box.append(pre);}return box;}
 function normalizedCodeLang(lang){return (lang||'').trim().toLowerCase().replace(/^language-/,'');}
