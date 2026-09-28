@@ -1,5 +1,5 @@
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
-const API_BASE=(window.SOMENAI_API_BASE||'').replace(/\/$/,'');
+const API_BASE='/AI/Kuup/API';
 let authToken=localStorage.getItem('somenai-token')||'',chats=[],current=null,conversation=[],busy=false,register=false,config,usageState,settings={studyMode:0,webMode:'auto'},generationController=null,generationRequestId='',siteMode=false,siteConversation=[],siteGenerationController=null,siteProjectId=null,siteProjectStatus='idle',siteProject=null,sitePreviewPath='',sitePublished=null,siteTitle='My Site',sitePollTimer=0,siteGitHub=null,siteCapabilities={},githubConnection=null,githubRepos=[],quality=['low','normal','high','image'].includes(localStorage.getItem('somenai-quality'))?localStorage.getItem('somenai-quality'):'normal',imageMode=false;
 const qualityInfo={low:{label:'低',color:'green'},normal:{label:'中',color:'blue'},high:{label:'高',color:'purple'},image:{label:'画像生成',color:'orange'}};
 const notice=s=>$('#notice').textContent=s||'';
