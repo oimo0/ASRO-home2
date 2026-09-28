@@ -227,8 +227,8 @@ async function openSitePreview(path=sitePreviewPath){
  catch(e){title.textContent='プレビューを開けませんでした';notice(e.message);}
 }
 function closeSitePreview(){q('#sitePreviewDrawer').hidden=true;document.body.classList.remove('site-preview-open');}
-async function publishSiteProject(){if(!siteProjectId||!siteProject)return;const result=await api('/site-projects/'+siteProjectId+'/publish','POST',{});sitePublished=result;const data=await api('/site-projects/'+siteProjectId);applySiteProjectData(data);notice('公開したよ ✓ '+(sitePublished?.url||result.url||''));}
-async function revokeSiteProject(){if(!siteProjectId||!sitePublished)return;await api('/site-projects/'+siteProjectId+'/publish','DELETE');sitePublished=null;const data=await api('/site-projects/'+siteProjectId);applySiteProjectData(data);notice('公開を取り消したよ。');}
+async function publishSiteProject(){if(!siteProjectId||!siteProject)return;const result=await api('/site-projects/'+siteProjectId+'/publish','POST',{});sitePublished=result;const data=await api('/site-projects/'+siteProjectId);applySiteProjectData(data);notice('');}
+async function revokeSiteProject(){if(!siteProjectId||!sitePublished)return;await api('/site-projects/'+siteProjectId+'/publish','DELETE');sitePublished=null;const data=await api('/site-projects/'+siteProjectId);applySiteProjectData(data);notice('');}
 async function openSiteBuilder(){
  if(busy&&generationController){generationController.abort();setBusy(false);}
  clearTimeout(sitePollTimer);siteMode=true;document.body.classList.add('site-mode');current=null;pendingAssets=[];renderPending();closePopovers();closeSitePreview();
