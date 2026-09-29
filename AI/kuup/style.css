@@ -304,3 +304,10 @@ body:not(.dark) .orb{display:none}
     word-break:normal !important;
   }
 }
+
+
+/* KaTeX / LaTeX math rendering */
+.content .katex{font-size:1.05em}
+.content .katex-display{margin:1em 0;max-width:100%;overflow-x:auto;overflow-y:hidden;padding:.25em 0;-webkit-overflow-scrolling:touch}
+.content .katex-display>.katex{white-space:normal}
+.content .katex-error{color:inherit}
