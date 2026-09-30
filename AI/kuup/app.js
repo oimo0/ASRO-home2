@@ -1,7 +1,7 @@
 (function installKuupFatalHandler(){const show=(kind,message,error)=>{try{console.error('[Kuup '+kind+']',message,error);let box=document.getElementById('notice');if(box){box.textContent='Kuupの起動エラー: '+message;box.style.display='block';box.style.color='#b42318';box.style.fontWeight='700';box.style.whiteSpace='pre-wrap';}let panel=document.getElementById('kuupFatal');if(!panel){panel=document.createElement('div');panel.id='kuupFatal';panel.style.cssText='position:fixed;left:12px;right:12px;bottom:12px;z-index:2147483647;padding:12px 14px;border-radius:12px;background:#fff4f2;color:#8f1d14;border:1px solid #f2b8b5;box-shadow:0 8px 28px rgba(0,0,0,.18);font:600 13px/1.45 system-ui,sans-serif;white-space:pre-wrap;word-break:break-word;';document.body?.appendChild(panel);}if(panel)panel.textContent='Kuup起動エラー\\n'+message;}catch{}};window.addEventListener('error',e=>show('error',e.message||'JavaScriptエラー',e.error));window.addEventListener('unhandledrejection',e=>{const r=e.reason;show('promise',r?.stack||r?.message||String(r),r);});})();
 const q=s=>document.querySelector(s),qa=s=>[...document.querySelectorAll(s)];
 const API_BASE='/AI/Kuup/API';
-let authToken=localStorage.getItem('somenai-token')||'',chats=[],current=null,conversation=[],busy=false,register=false,config,usageState,settings={studyMode:0,webMode:'auto'},generationController=null,generationRequestId='',siteMode=false,siteConversation=[],siteGenerationController=null,siteProjectId=null,siteProjectStatus='idle',siteProject=null,sitePreviewPath='',sitePublished=null,siteTitle='My Site',sitePollTimer=0,siteGitHub=null,siteCapabilities={},githubConnection=null,githubRepos=[],quality=['low','normal','high','image'].includes(localStorage.getItem('somenai-quality'))?localStorage.getItem('somenai-quality'):'normal',imageMode=false;
+let authToken=localStorage.getItem('somenai-token')||'',chats=[],current=null,conversation=[],busy=false,register=false,config,usageState,settings={studyMode:0,webMode:'auto'},generationController=null,generationRequestId='',siteMode=false,siteConversation=[],siteGenerationController=null,siteProjectId=null,siteProjectStatus='idle',siteProject=null,sitePreviewPath='',sitePublished=null,siteTitle='My Site',sitePollTimer=0,siteGitHub=null,siteCapabilities={},githubConnection=null,githubRepos=[],siteActivityAutoTail=true,siteActivityClock=0,quality=['low','normal','high','image'].includes(localStorage.getItem('somenai-quality'))?localStorage.getItem('somenai-quality'):'normal',imageMode=false;
 const qualityInfo={low:{label:'低',color:'green'},normal:{label:'中',color:'blue'},high:{label:'高',color:'purple'},image:{label:'画像生成',color:'orange'}};
 const notice=s=>q('#notice').textContent=s||'';
 function clearPromptBox(){const el=q('#prompt');el.value='';el.style.height='';el.scrollTop=0;}
@@ -123,11 +123,50 @@ function localizeCookProgressLabel(label=''){
  m=text.match(/^Plating\s+(\d+)\s+files\.\.\.$/);if(m)return m[1]+'個のファイルをプレビュー用に準備しています…';
  return text;
 }
+
+function formatCookElapsed(ms){
+ const total=Math.max(0,Math.floor(Number(ms||0)/1000)),h=Math.floor(total/3600),m=Math.floor(total%3600/60),sec=total%60;
+ return h?(h+'時間 '+m+'分 '+sec+'秒'):m?(m+'分 '+sec+'秒'):(sec+'秒');
+}
+function renderCookActivity(job){
+ const dialog=q('#siteActivityDialog');if(!dialog||!job)return;
+ const status=job.status||siteProjectStatus||'running';
+ const title=q('#siteActivityTitle'),meta=q('#siteActivityMeta'),steps=q('#siteActivitySteps'),output=q('#siteActivityOutput'),outputMeta=q('#siteActivityOutputMeta'),live=q('#siteActivityLive');
+ if(title)title.textContent=status==='complete'?'Cookの作業が完了しました':status==='error'?'Cookがエラーで停止しました':status==='stopped'?'Cookを停止しました':'Cookの作業を確認中…';
+ if(live){live.textContent=status==='running'?'LIVE':status==='complete'?'DONE':status.toUpperCase();live.className='site-activity-live '+status;}
+ const elapsed=status==='running'&&job.startedAt?Date.now()-job.startedAt:job.startedAt?Math.max(0,Number(job.updated||Date.now())-Number(job.startedAt)):0;
+ const chars=Number(job.liveOutputChars||0);
+ if(meta)meta.textContent='経過 '+formatCookElapsed(elapsed)+' · AI出力 '+chars.toLocaleString()+'文字';
+ if(steps){
+  steps.replaceChildren();
+  for(const step of job.progress||[]){
+   const row=document.createElement('div');row.className='site-activity-step '+(step.state||'done');
+   const icon=document.createElement('span');icon.textContent=step.state==='active'?'●':step.state==='error'?'!':step.state==='stopped'?'■':'✓';
+   const copy=document.createElement('div');const label=document.createElement('b');label.textContent=localizeCookProgressLabel(step.label);copy.append(label);row.append(icon,copy);steps.append(row);
+  }
+ }
+ const value=String(job.liveOutput||'');
+ if(output){output.textContent=value||'AIの出力を待っています…';if(siteActivityAutoTail)output.scrollTop=output.scrollHeight;}
+ if(outputMeta)outputMeta.textContent=value?(value.length.toLocaleString()+'文字表示'):'まだ出力なし';
+}
+function openCookActivity(){
+ const dialog=q('#siteActivityDialog');if(!dialog)return;dialog.showModal();siteActivityAutoTail=true;
+ const job=siteConversation.find(x=>x.kind==='progress')?.job;if(job)renderCookActivity(job);
+}
+function closeCookActivity(){const dialog=q('#siteActivityDialog');if(dialog?.open)dialog.close();}
 function siteProgressNode(m){
- const article=document.createElement('article');article.className='message assistant site-progress-message';const who=document.createElement('div');who.className='who';const logo=document.createElement('span');logo.className='mini-logo';const label=document.createElement('span');label.textContent='Kuup Cook';who.append(logo,label);article.append(who);
- const status=m.status||'working',card=document.createElement('div');card.className='site-progress-card '+status;const head=document.createElement('div');head.className='site-progress-head';const mark=document.createElement('span');
+ const article=document.createElement('article');article.className='message assistant site-progress-message';
+ const who=document.createElement('div');who.className='who';const logo=document.createElement('span');logo.className='mini-logo';const label=document.createElement('span');label.textContent='Kuup Cook';who.append(logo,label);article.append(who);
+ const status=m.status||'working',card=document.createElement('div');card.className='site-progress-card '+status;
+ const head=document.createElement('div');head.className='site-progress-head';const mark=document.createElement('span');
  if(status==='success'){mark.className='site-progress-check';mark.textContent='✓';}else if(status==='error'){mark.className='site-progress-error';mark.textContent='!';}else if(status==='stopped'){mark.className='site-progress-stopped';mark.textContent='■';}else mark.className='site-progress-spinner';
  const title=document.createElement('b');title.textContent=status==='success'?'完成しました ✓':status==='error'?'作成に失敗しました':status==='stopped'?'停止しました':'作成中…';head.append(mark,title);card.append(head);
+ const job=m.job;
+ if(job){
+  const bar=document.createElement('button');bar.type='button';bar.className='site-progress-inspector';bar.innerHTML='<span><b>作業の中身を見る</b><small>コード生成・検索・確認などの進捗とAI出力を表示</small></span><strong>›</strong>';bar.onclick=openCookActivity;card.append(bar);
+  const stats=document.createElement('div');stats.className='site-progress-live-meta';
+  const chars=Number(job.liveOutputChars||0);const elapsed=job.startedAt?Date.now()-job.startedAt:0;stats.textContent=(status==='working'?'実行中 · ':'')+'経過 '+formatCookElapsed(elapsed)+' · AI出力 '+chars.toLocaleString()+'文字';card.append(stats);
+ }
  for(const step of m.steps||[]){const row=document.createElement('div');row.className='site-progress-step '+(step.state||'done');const icon=document.createElement('span');icon.textContent=step.state==='active'?'●':step.state==='error'?'!':step.state==='stopped'?'■':'✓';const text=document.createElement('span');text.textContent=localizeCookProgressLabel(step.label);row.append(icon,text);card.append(row);}
  if(status==='error'&&m.error){const detail=document.createElement('div');detail.className='site-progress-error-detail';detail.textContent=m.error;card.append(detail);}
  if(status==='error'||status==='stopped'){const retry=document.createElement('button');retry.type='button';retry.className='site-progress-retry';retry.textContent='↻ もう一度試す';retry.onclick=()=>{const last=[...siteConversation].reverse().find(x=>x.role==='user'&&x.content)?.content;if(last&&!busy){q('#prompt').value=last;sendSiteMessage();}};card.append(retry);}
@@ -179,7 +218,7 @@ function siteStateMessages(data){
  const result=(data.messages||[]).map(m=>({role:m.role,content:m.content}));
  if(data.job){
   const status=data.job.status==='complete'?'success':data.job.status==='error'?'error':data.job.status==='stopped'?'stopped':'working';
-  if(data.job.progress?.length||data.job.status==='running'||data.job.error)result.push({role:'assistant',kind:'progress',steps:data.job.progress||[],status,error:data.job.error||''});
+  if(data.job.progress?.length||data.job.status==='running'||data.job.error)result.push({role:'assistant',kind:'progress',steps:data.job.progress||[],status,error:data.job.error||'',job:data.job});
  }
  return result;
 }
@@ -188,7 +227,7 @@ function applySiteProjectData(data,{renderNow=true}={}){
  const fallbackPublishedUrl=data.published?.slug?'https://asro.jp/AI/kuup/'+encodeURIComponent(q('#username').textContent)+'/'+encodeURIComponent(data.published.slug):'';
  sitePublished=data.published?{...data.published,url:data.published.url||fallbackPublishedUrl}:null;siteGitHub=data.github||null;
  siteCapabilities=data.capabilities||{mode:siteProject?.mode==='repo'?'repo':'site',fileCount:siteProject?.files?.length||0,canPreview:!!sitePreviewPath,canPublish:!!sitePreviewPath&&siteProjectStatus!=='running',canGitHubSave:!!siteProject,gitHubAutoSave:!!siteProject?.source?.autoSave};
- siteTitle=data.title||'Kuup Cook';siteConversation=siteStateMessages(data);if(renderNow){updateModel();renderSiteConversation();renderHistory();}
+ siteTitle=data.title||'Kuup Cook';siteConversation=siteStateMessages(data);renderCookActivity(data.job);if(renderNow){updateModel();renderSiteConversation();renderHistory();}
 }
 async function pollSiteProject(id){
  clearTimeout(sitePollTimer);if(!id)return;
@@ -201,7 +240,7 @@ async function pollSiteProject(id){
  const before=siteProjectStatus;
  if(siteMode&&siteProjectId===id){applySiteProjectData(data);if(before==='running'&&data.status==='complete'&&data.previewPath){const shouldOpen=data.project?.mode!=='repo'||!q('#sitePreviewDrawer').hidden;if(shouldOpen)openSitePreview(data.previewPath);}}
  try{await refresh();}catch{}
- if(data.status==='running'&&siteMode&&siteProjectId===id){sitePollTimer=setTimeout(()=>pollSiteProject(id),1200);return;}
+ if(data.status==='running'&&siteMode&&siteProjectId===id){sitePollTimer=setTimeout(()=>pollSiteProject(id),800);return;}
  if(data.status!=='running'){try{await refreshUsage();}catch{}}
  if(q('#notice').textContent==='Kuup AIサーバーに接続できません。')notice('');
 }
