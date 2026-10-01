@@ -495,16 +495,35 @@ async function generateImage(){
 async function waitForImage(id){for(let attempt=0;attempt<85;attempt++){await new Promise(r=>setTimeout(r,2000));let job;try{job=await api('/images/'+id);}catch(e){if(attempt<5)continue;throw e;}if(job.status==='done')return;if(job.status==='failed'){localStorage.removeItem('somenai-image-job');throw Error(job.error||'画像を生成できませんでした。');}}throw Error('画像生成の確認が時間切れになりました。更新後に会話を確認してください。');}
 async function resumeImageJob(){const id=localStorage.getItem('somenai-image-job');if(!id||busy)return;try{const job=await api('/images/'+id);if(job.status==='running'){notice('画像を生成しています…');await waitForImage(id);}else if(job.status==='failed')throw Error(job.error||'画像を生成できませんでした。');localStorage.removeItem('somenai-image-job');await refresh();await refreshUsage();if(current===job.chatId){conversation=(await api('/chats/'+job.chatId)).messages;render();}notice();}catch(e){localStorage.removeItem('somenai-image-job');notice(e.message);}}
 q('#attachButton').onclick=()=>{if(!siteMode)q('#fileInput').click();};
+const appearanceAccents=['ink','blue','sky','cyan','mint','green','amber','orange','coral','rose','pink','violet','custom'];
+const appearanceComposers=['auto','blue','sky','cyan','mint','green','amber','orange','coral','rose','pink','violet','custom'];
+const isAppearanceHex=v=>typeof v==='string'&&/^#[0-9a-f]{6}$/i.test(v);
+function appearanceInk(hex){const h=hex.slice(1);const rgb=[0,2,4].map(i=>parseInt(h.slice(i,i+2),16)/255).map(v=>v<=.03928?v/12.92:((v+.055)/1.055)**2.4);const l=.2126*rgb[0]+.7152*rgb[1]+.0722*rgb[2];return l>.45?'#111820':'#ffffff';}
 function applyAppearance(v){
- document.body.classList.toggle('dark',v.theme==='dark');document.body.dataset.accent=['ink','blue','mint','violet','coral'].includes(v.accent)?v.accent:'ink';document.body.dataset.composer=['auto','blue','mint','violet','coral'].includes(v.composer)?v.composer:'auto';
- qa('[data-accent]').filter(x=>x.tagName==='BUTTON').forEach(b=>b.setAttribute('aria-pressed',b.dataset.accent===document.body.dataset.accent));
- qa('[data-composer]').filter(x=>x.tagName==='BUTTON').forEach(b=>b.setAttribute('aria-pressed',b.dataset.composer===document.body.dataset.composer));
+ const body=document.body;
+ body.classList.toggle('dark',v.theme==='dark');
+ body.dataset.accent=appearanceAccents.includes(v.accent)?v.accent:'ink';
+ body.dataset.composer=appearanceComposers.includes(v.composer)?v.composer:'auto';
+ const accentColor=isAppearanceHex(v.accentColor)?v.accentColor.toLowerCase():'#316ac9';
+ const composerColor=isAppearanceHex(v.composerColor)?v.composerColor.toLowerCase():'#316ac9';
+ if(body.dataset.accent==='custom'){body.style.setProperty('--accent',accentColor);body.style.setProperty('--ink',appearanceInk(accentColor));}else{body.style.removeProperty('--accent');body.style.removeProperty('--ink');}
+ if(body.dataset.composer==='custom'){body.style.setProperty('--compose',composerColor);body.style.setProperty('--compose-ink',appearanceInk(composerColor));}else{body.style.removeProperty('--compose');body.style.removeProperty('--compose-ink');}
+ qa('[data-accent]').filter(x=>x.tagName==='BUTTON').forEach(b=>b.setAttribute('aria-pressed',b.dataset.accent===body.dataset.accent));
+ qa('[data-composer]').filter(x=>x.tagName==='BUTTON').forEach(b=>b.setAttribute('aria-pressed',b.dataset.composer===body.dataset.composer));
+ const accentInput=q('#accentCustomColor'),composerInput=q('#composerCustomColor');
+ if(accentInput)accentInput.value=accentColor;if(composerInput)composerInput.value=composerColor;
+ if(q('#accentCustomValue'))q('#accentCustomValue').textContent=accentColor.toUpperCase();
+ if(q('#composerCustomValue'))q('#composerCustomValue').textContent=composerColor.toUpperCase();
+ accentInput?.closest('.custom-color-row')?.classList.toggle('active',body.dataset.accent==='custom');
+ composerInput?.closest('.custom-color-row')?.classList.toggle('active',body.dataset.composer==='custom');
 }
 let appearanceQueue=Promise.resolve();
 function appearanceChange(change){const next={...(settings.appearance||{}),...change};applyAppearance(next);settings.appearance=next;q('#saveStatus').textContent='保存中…';appearanceQueue=appearanceQueue.catch(()=>{}).then(async()=>{if(authToken)await api('/settings','PATCH',{appearance:next});q('#saveStatus').textContent='保存しました';}).catch(e=>{q('#saveStatus').textContent='保存できませんでした。もう一度選択してください。';throw e;});return appearanceQueue;}
 q('#themeToggle').onclick=safe(()=>appearanceChange({theme:document.body.classList.contains('dark')?'light':'dark'}));
 qa('#accentPicker button').forEach(b=>b.onclick=safe(()=>appearanceChange({accent:b.dataset.accent})));
 qa('#composerPicker button').forEach(b=>b.onclick=safe(()=>appearanceChange({composer:b.dataset.composer})));
+q('#accentCustomColor').onchange=safe(e=>appearanceChange({accent:'custom',accentColor:e.target.value}));
+q('#composerCustomColor').onchange=safe(e=>appearanceChange({composer:'custom',composerColor:e.target.value}));
 // Safari can retain the keyboard's short visualViewport height after it closes.
 function viewport(){
   const height=window.visualViewport?.height;
