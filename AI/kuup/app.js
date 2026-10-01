@@ -1,6 +1,7 @@
 (function installKuupFatalHandler(){const show=(kind,message,error)=>{try{console.error('[Kuup '+kind+']',message,error);let box=document.getElementById('notice');if(box){box.textContent='Kuupの起動エラー: '+message;box.style.display='block';box.style.color='#b42318';box.style.fontWeight='700';box.style.whiteSpace='pre-wrap';}let panel=document.getElementById('kuupFatal');if(!panel){panel=document.createElement('div');panel.id='kuupFatal';panel.style.cssText='position:fixed;left:12px;right:12px;bottom:12px;z-index:2147483647;padding:12px 14px;border-radius:12px;background:#fff4f2;color:#8f1d14;border:1px solid #f2b8b5;box-shadow:0 8px 28px rgba(0,0,0,.18);font:600 13px/1.45 system-ui,sans-serif;white-space:pre-wrap;word-break:break-word;';document.body?.appendChild(panel);}if(panel)panel.textContent='Kuup起動エラー\\n'+message;}catch{}};window.addEventListener('error',e=>show('error',e.message||'JavaScriptエラー',e.error));window.addEventListener('unhandledrejection',e=>{const r=e.reason;show('promise',r?.stack||r?.message||String(r),r);});})();
 const q=s=>document.querySelector(s),qa=s=>[...document.querySelectorAll(s)];
 const API_BASE='/AI/Kuup/API';
+const COOK_AVAILABLE=false;
 let authToken=localStorage.getItem('somenai-token')||'',chats=[],current=null,conversation=[],busy=false,register=false,config,usageState,settings={studyMode:0,webMode:'auto'},generationController=null,generationRequestId='',siteMode=false,siteConversation=[],siteGenerationController=null,siteProjectId=null,siteProjectStatus='idle',siteProject=null,sitePreviewPath='',sitePublished=null,siteTitle='My Site',sitePollTimer=0,siteGitHub=null,siteCapabilities={},githubConnection=null,githubRepos=[],siteActivityAutoTail=true,siteActivityClock=0,quality=['low','normal','high','image'].includes(localStorage.getItem('somenai-quality'))?localStorage.getItem('somenai-quality'):'normal',imageMode=false;
 const qualityInfo={low:{label:'低',color:'green'},normal:{label:'中',color:'blue'},high:{label:'高',color:'purple'},image:{label:'画像生成',color:'orange'}};
 const notice=s=>q('#notice').textContent=s||'';
@@ -197,10 +198,21 @@ function siteProjectNode(m){
  if(sitePublished){const open=document.createElement('a');open.href=sitePublished.url;open.target='_blank';open.rel='noopener';open.textContent='公開ページ ↗';actions.append(open);const copyUrl=document.createElement('button');copyUrl.type='button';copyUrl.textContent='URLをコピー';copyUrl.onclick=safe(async()=>{await copyCodeText(sitePublished.url);copyUrl.textContent='コピーしました';setTimeout(()=>{if(copyUrl.isConnected)copyUrl.textContent='URLをコピー';},1000);});actions.append(copyUrl);const revoke=document.createElement('button');revoke.type='button';revoke.className='site-revoke';revoke.textContent='公開を取り消す';revoke.onclick=safe(revokeSiteProject);actions.append(revoke);}
  bubble.append(actions);article.append(bubble);return article;
 }
+function cookUnavailableNode(){
+ const article=document.createElement('article');article.className='cook-maintenance';
+ const card=document.createElement('div');card.className='cook-maintenance-card';
+ const logo=document.createElement('img');logo.src='./cook-logo.svg';logo.alt='';logo.className='cook-maintenance-logo';
+ const copy=document.createElement('div');copy.className='cook-maintenance-copy';
+ const badge=document.createElement('span');badge.className='cook-maintenance-badge';badge.textContent='DEVELOPING';
+ const title=document.createElement('b');title.textContent='現在Cookは利用できません。';
+ const text=document.createElement('p');text.textContent='安定的に利用できるように開発中です。';
+ const link=document.createElement('a');link.href='./cook/home/';link.className='cook-maintenance-link';link.textContent='Cookについて詳しく';link.setAttribute('aria-label','Cookについて詳しく');
+ copy.append(badge,title,text,link);card.append(logo,copy);article.append(card);return article;
+}
 function siteMessageNode(m){if(m.kind==='progress')return siteProgressNode(m);if(m.kind==='project')return siteProjectNode(m);const node=messageNode(m,Number.MIN_SAFE_INTEGER);if(m.role==='assistant'){const label=node.querySelector('.who span:last-child');if(label)label.textContent='Kuup Cook';}return node;}
 function renderSiteConversation({forceBottom=false}={}){
  const area=q('#messages'),distanceFromBottom=area.scrollHeight-area.scrollTop-area.clientHeight,wasNearBottom=distanceFromBottom<140;
- area.replaceChildren(...siteConversation.map(siteMessageNode));
+ const nodes=siteConversation.map(siteMessageNode);if(!COOK_AVAILABLE)nodes.unshift(cookUnavailableNode());area.replaceChildren(...nodes);
  if(siteProject){
   const card=siteProjectNode({project:siteProject,previewPath:sitePreviewPath});
   if(siteProjectStatus==='running'){
@@ -212,7 +224,7 @@ function renderSiteConversation({forceBottom=false}={}){
   area.append(card);
  }
  q('#welcome').hidden=true;q('#siteBuilderOpen').classList.add('active');q('#chatTitle').textContent=siteTitle||'Kuup Cook';for(const id of ['rename','delete','export'])q('#'+id).disabled=true;
- const running=siteProjectStatus==='running';q('#send').hidden=running;q('#stop').hidden=!running;q('#stop').disabled=false;q('#prompt').disabled=running;requestAnimationFrame(()=>{if(forceBottom||wasNearBottom)area.scrollTop=area.scrollHeight;});
+ const running=siteProjectStatus==='running',unavailable=!COOK_AVAILABLE;q('#send').hidden=running;q('#send').disabled=unavailable;q('#stop').hidden=!running;q('#stop').disabled=false;q('#prompt').disabled=running||unavailable;q('#attachButton').disabled=unavailable;q('#fileInput').disabled=unavailable;q('#prompt').placeholder=unavailable?'Cookは現在利用できません':'Cookに作ってほしいものを伝える';requestAnimationFrame(()=>{if(forceBottom||wasNearBottom)area.scrollTop=area.scrollHeight;});
 }
 function siteStateMessages(data){
  const result=(data.messages||[]).map(m=>({role:m.role,content:m.content}));
@@ -266,6 +278,7 @@ async function runCookActionIntent(intent){
  return false;
 }
 async function sendSiteMessage(){
+ if(!COOK_AVAILABLE)return;
  const text=q('#prompt').value.trim();if(!text||siteProjectStatus==='running')return;
  const action=cookActionIntent(text);if(action&&siteProjectId&&siteProject){await runCookActionIntent(action);return;}
  if(!siteProjectId){
@@ -287,7 +300,7 @@ async function openSiteBuilder(){
  if(busy&&generationController){generationController.abort();setBusy(false);}
  clearTimeout(sitePollTimer);siteMode=true;document.body.classList.add('site-mode');current=null;pendingAssets=[];renderPending();closePopovers();closeSitePreview();
  siteProjectId=null;siteProjectStatus='idle';siteProject=null;sitePreviewPath='';sitePublished=null;siteGitHub=null;siteCapabilities={};siteTitle='新しいCook';
- clearPromptBox();siteConversation=[{role:'assistant',content:'やりたいことをそのまま言って。新しいサイトやアプリを0から作ったり、今あるものを直したり、動作確認までCookが進めるよ。'}];
+ clearPromptBox();siteConversation=[];
  updateModel();render();renderHistory();document.body.classList.remove('sidebar-open');q('#prompt').focus();
 }
 function messageNode(m,index){const article=document.createElement('article');article.className='message '+m.role;const bubble=document.createElement('div');bubble.className='bubble';if(m.role==='assistant'){const who=document.createElement('div');who.className='who';const logo=document.createElement('span');logo.className='mini-logo';logo.textContent='';const label=document.createElement('span');label.textContent=`Kuup AI${m.status==='interrupted'?' · 中断':''}`;who.append(logo,label);article.append(who);}const content=document.createElement('div');content.className='content';if(m.image){const img=document.createElement('img');img.className='generated-image';img.src=m.image;img.alt=m.content;content.append(img);const p=document.createElement('p');p.textContent=m.content;content.append(p);}else if(busy&&m.role==='assistant'&&!m.content){const dots=document.createElement('span');dots.className='thinking-dots';dots.setAttribute('aria-label','回答を生成しています');for(let n=0;n<3;n++)dots.append(document.createElement('i'));content.append(dots);}else format(content,m.content||'');for(const asset of m.assets||[]){const holder=document.createElement('div');holder.className='asset-holder';holder.textContent=asset.name;content.append(holder);loadMedia(asset,holder);}bubble.append(content);if(m.sources?.length)bubble.append(sourcesNode(m.sources));article.append(bubble);if(m.role==='assistant'&&(m.content||m.image)){const tools=document.createElement('div');tools.className='message-tools';const copy=document.createElement('button');copy.textContent='コピー';copy.onclick=safe(async()=>{await navigator.clipboard.writeText(m.content);copy.textContent='コピー済み';});tools.append(copy);if(index===conversation.length-1&&!m.image){const retry=document.createElement('button');retry.textContent='↻ 再生成';retry.disabled=busy;retry.onclick=safe(()=>send(true));tools.append(retry);}article.append(tools);}return article;}
