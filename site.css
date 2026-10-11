@@ -69,3 +69,23 @@ footer{border-top:1px solid var(--line);padding:44px 6vw;display:flex;align-item
 /* Official ASRO horizontal wordmark. */
 .brand img{width:126px;height:32px;object-fit:contain}
 @media(max-width:480px){.brand img{width:108px;height:28px}}
+
+/* ASRO service catalogue and current development status. */
+.product-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.product-card{min-width:0;padding:34px;border:1px solid #ffffff1a;background:linear-gradient(135deg,#07111d,#03070c);display:flex;flex-direction:column;align-items:flex-start;transition:border-color .2s}
+.product-card:hover{border-color:#168cff65}
+.product-meta{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;font-size:9px;letter-spacing:1.8px;color:#65c4ff;width:100%}
+.product-meta .product-state{margin-left:auto;color:#c7d8e8;letter-spacing:0;border:1px solid #ffffff25;border-radius:999px;padding:5px 10px;white-space:nowrap}
+.product-card h3{font-size:clamp(30px,3vw,42px);margin:28px 0 14px;line-height:1.15;letter-spacing:-.03em}
+.product-card>p{font-size:13px;line-height:1.9;color:#a8b7c7;max-width:560px;margin:0 0 26px}
+.product-link{display:inline-flex;align-items:center;gap:24px;font-size:12px;color:#80d4ff;margin-top:auto;padding:10px 0}
+.product-link:hover{color:#fff}
+.product-link:focus-visible,a:focus-visible,button:focus-visible{outline:2px solid #65dcff;outline-offset:5px}
+.section-note{color:#91a1b3;font-size:12px;line-height:1.8;margin-top:26px}
+@media(max-width:650px){.product-grid{grid-template-columns:1fr;gap:14px}.product-card{padding:26px}.product-meta{letter-spacing:1px}.product-card>p{font-size:12px}}
+
+@media(max-width:800px){header nav{gap:12px;letter-spacing:1px}header nav .nav-services,header nav .nav-plat{display:block}header nav a:last-child{display:none}}
+@media(max-width:380px){header nav a:first-child{display:none}}
+
+.subfooter-links{flex-wrap:wrap;justify-content:center;row-gap:12px}footer>span{flex-shrink:0}
+@media(max-width:800px){.subfooter-links{justify-content:flex-start}footer{flex-wrap:wrap}}
