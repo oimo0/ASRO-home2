@@ -122,3 +122,7 @@ footer{display:grid;grid-template-columns:1fr 2fr 1fr;align-items:center;padding
 .foundation{padding-top:0}.foundation-panel{border:1px solid #168cff35;background:linear-gradient(120deg,#07111d,#09233d);padding:48px;display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center}
 .foundation h2{font-size:clamp(32px,3.7vw,56px);line-height:1.25;letter-spacing:-.05em;margin:20px 0}.foundation h2 em{font-style:normal;color:#65dcff}
 @media(max-width:800px){.foundation-panel{grid-template-columns:1fr;gap:8px;padding:30px}.foundation h2{font-size:32px}}
+
+/* Four ASRO divisions. */
+.division-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media(max-width:800px){.division-grid{grid-template-columns:1fr}}
