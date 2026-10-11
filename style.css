@@ -98,3 +98,9 @@ footer{display:grid;grid-template-columns:1fr 2fr 1fr;align-items:center;padding
 .service-status-copy small{font-size:9px;color:#738394;letter-spacing:1.2px}
 .service-status-arrow{color:#56bcff;font-size:17px}
 @media(max-width:480px){.service-status-link{margin-top:28px;padding:15px 16px;border-radius:16px}.service-status-copy b{font-size:11px}}
+
+/* Official ASRO symbol and wordmark, October 2026. */
+.brand img{width:126px;height:32px}
+.hero-brand>.hero-logo{width:200px;height:auto;aspect-ratio:1;margin-bottom:14px}
+@media(max-width:780px){.hero-brand>.hero-logo{width:170px}}
+@media(max-width:480px){.brand img{width:108px;height:28px}.hero-brand>.hero-logo{width:155px}}

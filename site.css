@@ -66,3 +66,6 @@ footer{border-top:1px solid var(--line);padding:44px 6vw;display:flex;align-item
 @media(max-width:480px){
   .subfooter-links{flex-direction:column;align-items:flex-start}
 }
+/* Official ASRO horizontal wordmark. */
+.brand img{width:126px;height:32px;object-fit:contain}
+@media(max-width:480px){.brand img{width:108px;height:28px}}
