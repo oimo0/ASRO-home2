@@ -2,7 +2,7 @@
 
 const menuToggle = document.querySelector('.menu-toggle');
 const siteNav = document.querySelector('#site-nav');
-const smallScreen = matchMedia('(max-width: 720px)');
+const smallScreen = matchMedia('(max-width: 820px)');
 
 if (menuToggle && siteNav) {
   menuToggle.hidden = false;
